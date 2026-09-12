@@ -141,6 +141,7 @@ export interface DebriefFacts {
   stolenFrom: string | null
   timeToRevoke: number | null
   falseRevokes: number
+  wastedWalkSeconds?: number
 }
 
 /**
@@ -160,6 +161,7 @@ export async function debriefLine(f: DebriefFacts): Promise<{ text: string; by: 
         }.`
       : 'No signing key was compromised.',
     f.falseRevokes ? `${f.falseRevokes} clean keys were rotated on a wrong guess.` : '',
+    typeof f.wastedWalkSeconds === 'number' && f.wastedWalkSeconds > 0 ? `The operator spent ${Math.round(f.wastedWalkSeconds)} seconds walking where forged orders sent her.` : '',
     'Give the crew one flat sentence about how that went.',
   ]
     .filter(Boolean)

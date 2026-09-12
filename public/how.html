@@ -97,7 +97,7 @@
     <li>Things break. Each crew member sees <b>a different piece</b> of the problem, so you have to <b>talk out loud</b> to work out what's wrong.</li>
     <li>When it's your problem, press your button. An <b>order card fills Vega's screen</b>. Vega can't hear you, so the card is the only way to tell her.</li>
     <li>Every card carries a <b>stamp</b>. Vega checks it before she does anything: <b>SEALED</b> means do it, anything else means ignore it.</li>
-    <li class="twist">At 0:58 the hacker <b>steals one crew member's key</b>. Its fake cards now show SEALED too. The only clue is a <b>NOT YOU</b> line in the victim's own log, so they have to <b>yell it</b>.</li>
+    <li class="twist">With about 30 seconds left on the clock, the hacker <b>steals one crew member's key</b>. Its fake cards now show SEALED too. The only clue is a <b>NOT YOU</b> line in the victim's own log, so they have to <b>yell it</b>.</li>
     <li>Chen sends <b>ROTATE</b> for that seat. Vega grabs the key token from the Spine and <b>runs it to Comms</b>. Now the stolen key is dead.</li>
     <li>At 90 seconds you get an <b>incident report</b>: what got through, what you caught, and how fast you killed the stolen key.</li>
   </ol>
@@ -127,7 +127,7 @@
       why: 'Right: the stamp checks out, so Rook really sent it.' },
     { order: 'SEAL PORT', from: 'claims to be from CHEN', badge: 'BROKEN SEAL', color: 'var(--danger)', ctx: 'Nobody said anything about the port valve.', obey: false,
       why: 'Right: a broken seal means the hacker wrote it. Obeying would starve the air.' },
-    { order: 'SHIELDS', from: 'from IDRIS', badge: 'SEALED', color: 'var(--ok)', ctx: 'It\'s 1:05. Idris is yelling "NOT YOU! My log says I never sent that!"', obey: false,
+    { order: 'SHIELDS', from: 'from IDRIS', badge: 'SEALED', color: 'var(--ok)', ctx: '0:20 left on the clock. Idris is yelling "NOT YOU! My log says I never sent that!"', obey: false,
       why: 'Right: the key is stolen, so even SEALED can be fake now. Chen sends ROTATE IDRIS.' },
   ]
   const quiz = document.getElementById('quiz')
