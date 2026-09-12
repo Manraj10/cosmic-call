@@ -70,5 +70,5 @@ If `XAI_API_KEY` or `GROK_API_KEY` is set, Mission Control lines and the post-ga
 ## Stack
 
 - Next.js + React (player UI)
-- Authoritative WebSocket simulation (Node locally, Cloudflare Durable Objects in production)
+- Authoritative HTTP radio (short GET polls) — Node locally, Cloudflare Durable Objects in production. WebSockets are not used; temporary `workers.dev` hosts block them.
 - Web Audio + speech synthesis for alarms / Mission Control

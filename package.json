@@ -8,7 +8,8 @@
     "build:cf": "NEXT_OUTPUT=export next build",
     "deploy": "npm run build:cf && wrangler deploy --temporary",
     "start": "NODE_ENV=production tsx server/index.ts",
-    "lint": "eslint"
+    "lint": "eslint",
+    "smoke": "node scripts/smoke-sync.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
