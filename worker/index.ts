@@ -12,12 +12,17 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
 
+    if (url.pathname === "/api/health") {
+      return Response.json({ ok: true, service: "ares-habitat" });
+    }
+
     if (url.pathname === "/api/create" && request.method === "POST") {
       return Response.json({ code: makeCode() });
     }
 
     if (url.pathname === "/ws") {
-      if (request.headers.get("Upgrade") !== "websocket") {
+      const upgrade = (request.headers.get("Upgrade") || "").toLowerCase();
+      if (upgrade !== "websocket") {
         return new Response("Expected WebSocket", { status: 426 });
       }
       const room = (url.searchParams.get("room") || "").toUpperCase();
@@ -51,6 +56,10 @@ export class GameRoomDO extends DurableObject<Env> {
   }
 
   async fetch(request: Request) {
+    const upgrade = (request.headers.get("Upgrade") || "").toLowerCase();
+    if (upgrade !== "websocket") {
+      return new Response("Expected WebSocket", { status: 426 });
+    }
     const url = new URL(request.url);
     this.code = (url.searchParams.get("room") || this.code || "ROOM").toUpperCase();
     const pair = new WebSocketPair();
