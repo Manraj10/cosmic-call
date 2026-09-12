@@ -136,6 +136,23 @@ export class Hab {
     this.listener?.onView()
   }
 
+  removePlayer(playerId: string): boolean {
+    const gone = this.players.delete(playerId)
+    if (gone) {
+      // Whoever is left should not be stuck waiting on a host who walked out.
+      if (![...this.players.values()].some((p) => p.host)) {
+        const next = [...this.players.values()].find((p) => p.connected)
+        if (next) next.host = true
+      }
+      this.listener?.onView()
+    }
+    return gone
+  }
+
+  get playerCount(): number {
+    return this.players.size
+  }
+
   removeIfEmpty(): boolean {
     return [...this.players.values()].every((p) => !p.connected)
   }

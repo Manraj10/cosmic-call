@@ -18,11 +18,36 @@ const io = new Server(httpServer, { cors: { origin: true }, path: '/socket.io' }
 
 const habs = new Map<string, Hab>()
 
-function habByPlayer(playerId: string): Hab | undefined {
+/**
+ * A connection is bound to exactly one hab. Resolving by socket rather than by
+ * searching every hab for the player id matters because a player id outlives a
+ * hab: it is kept in sessionStorage, so refreshing and opening a new hab used to
+ * leave the old membership in place, and every later action was silently routed
+ * to whichever hab happened to come first in the map.
+ */
+function habForSocket(socket: { data: { playerId?: string; code?: string } }): Hab | undefined {
+  const { code, playerId } = socket.data
+  if (code) {
+    const hab = habs.get(code)
+    if (hab && playerId && hab.players.has(playerId)) return hab
+  }
+  if (!playerId) return undefined
   for (const hab of habs.values()) {
     if (hab.players.has(playerId)) return hab
   }
   return undefined
+}
+
+/** Drop a stale membership so one player id is never live in two habs at once. */
+function leaveOtherHabs(playerId: string, keepCode: string) {
+  for (const hab of [...habs.values()]) {
+    if (hab.code === keepCode) continue
+    if (!hab.removePlayer(playerId)) continue
+    if (hab.playerCount === 0) {
+      hab.stopClock()
+      habs.delete(hab.code)
+    }
+  }
 }
 
 function bind(hab: Hab) {
@@ -110,7 +135,9 @@ io.on('connection', (socket) => {
       })
       bind(hab)
       habs.set(code, hab)
+      leaveOtherHabs(playerId, code)
       socket.data.playerId = playerId
+      socket.data.code = code
       socket.join(code)
       cb?.({ ok: true, playerId, view: hab.viewFor(playerId) })
     },
@@ -146,42 +173,44 @@ io.on('connection', (socket) => {
           socketId: socket.id,
         })
       }
+      leaveOtherHabs(playerId, code)
       socket.data.playerId = playerId
+      socket.data.code = code
       socket.join(code)
       cb?.({ ok: true, playerId, view: hab.viewFor(playerId) })
     },
   )
 
   socket.on('claim', (role: StationId | null, cb?: (res: unknown) => void) => {
-    const hab = habByPlayer(socket.data.playerId)
+    const hab = habForSocket(socket)
     if (!hab) return cb?.({ ok: false, error: 'No hab' })
     const err = hab.claim(socket.data.playerId, role)
     cb?.(err ? { ok: false, error: err } : { ok: true })
   })
 
   socket.on('ready', (ready: boolean, cb?: (res: unknown) => void) => {
-    const hab = habByPlayer(socket.data.playerId)
+    const hab = habForSocket(socket)
     if (!hab) return cb?.({ ok: false, error: 'No hab' })
     const err = hab.setReady(socket.data.playerId, ready)
     cb?.(err ? { ok: false, error: err } : { ok: true })
   })
 
   socket.on('start', (cb?: (res: unknown) => void) => {
-    const hab = habByPlayer(socket.data.playerId)
+    const hab = habForSocket(socket)
     if (!hab) return cb?.({ ok: false, error: 'No hab' })
     const err = hab.start(socket.data.playerId)
     cb?.(err ? { ok: false, error: err } : { ok: true })
   })
 
   socket.on('action', (action: ClientAction, cb?: (res: unknown) => void) => {
-    const hab = habByPlayer(socket.data.playerId)
+    const hab = habForSocket(socket)
     if (!hab) return cb?.({ ok: false, error: 'No hab' })
     const err = hab.applyAction(socket.data.playerId, action)
     cb?.(err ? { ok: false, error: err } : { ok: true })
   })
 
   socket.on('disconnect', () => {
-    const hab = habByPlayer(socket.data.playerId)
+    const hab = habForSocket(socket)
     if (!hab) return
     hab.setSocket(socket.data.playerId, null, false)
     setTimeout(() => {

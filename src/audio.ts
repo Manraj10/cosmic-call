@@ -25,6 +25,17 @@ export function unlockAudio() {
   } catch {
     /* some browsers hold out until a later gesture */
   }
+  // Settle which voice path is live before the ship has anything to say, so the
+  // first line does not have to fail a request first. The voice is a timing cue
+  // for the crew, so it should not arrive late.
+  void fetch('/api/health')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((h: { voice?: string } | null) => {
+      if (h) grokAvailable = h.voice === 'grok'
+    })
+    .catch(() => {
+      /* leave it undecided and let the first line find out */
+    })
 }
 
 /** Short squelch click, so a transmission feels like a transmission. */
