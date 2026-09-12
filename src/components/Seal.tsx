@@ -1,5 +1,5 @@
 import { CREW_META } from '@shared/content'
-import type { ClientView, SealState } from '@shared/types'
+import type { ClientView, CrewId, SealState } from '@shared/types'
 
 const WORD: Record<SealState, string> = {
   sealed: 'SEALED',
@@ -44,21 +44,27 @@ export function SealBadge({ seal, tag, seq }: { seal: SealState; tag: string; se
  * did not press. They cannot send that fact to the operator — it has to be
  * said out loud, to whoever is sitting at comms.
  */
-export function KeyLog({ view }: { view: ClientView }) {
+export function KeyLog({ view, crew }: { view: ClientView; crew: CrewId }) {
   const seal = view.seal
   if (!seal) return null
   const stolen = seal.log.some((e) => !e.mine)
+  // On a short crew the console reading this may be the one holding the rotate cards.
+  const chen = crew === 'sparks' || !!view.covers?.includes('sparks')
 
   return (
     <div className={`keylog${stolen ? ' compromised' : ''}`}>
       <div className="keylog-head">
-        <span className="tag">signing log · key #{seal.epoch}</span>
+        <span className="tag">
+          signing log · {CREW_META[crew].callsign} key #{seal.epoch}
+        </span>
         <span className="tag">next seq {seal.nextSeq}</span>
       </div>
       {stolen ? (
         <div className="keyalarm">
-          SOMETHING IS SIGNING AS YOU. SAY IT OUT LOUD — CHEN MUST SEND A ROTATE CARD. SHE HAS TO
-          CARRY THE HARDWARE KEY TO COMMS.
+          SOMETHING IS SIGNING AS YOU.{' '}
+          {chen
+            ? `SEND ROTATE ${CREW_META[crew].callsign}. SHE HAS TO CARRY THE HARDWARE KEY TO COMMS.`
+            : `SAY IT OUT LOUD — ${CREW_META.sparks.callsign} MUST SEND ROTATE ${CREW_META[crew].callsign}. SHE HAS TO CARRY THE HARDWARE KEY TO COMMS.`}
         </div>
       ) : null}
       <div className="keyrows">
@@ -76,20 +82,6 @@ export function KeyLog({ view }: { view: ClientView }) {
               </div>
             ))
         )}
-      </div>
-    </div>
-  )
-}
-
-/** Chen sends rotate cards; Vega walks the hardware key. This is just the reminder. */
-export function RevokePanel(_props: { view: ClientView }) {
-  return (
-    <div className="revoke">
-      <div className="tag" style={{ textAlign: 'center' }}>
-        you do not rotate from here — send ROTATE ROOK / ROTATE IDRIS so she runs the token to Comms
-      </div>
-      <div className="tag" style={{ textAlign: 'center', opacity: 0.7 }}>
-        {CREW_META.sparks.callsign} holds the only cards that open the registry
       </div>
     </div>
   )

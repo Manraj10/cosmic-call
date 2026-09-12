@@ -3,7 +3,7 @@ import type { CrewId, RoleId, SignalId, StationId } from './types.ts'
 
 export const CREW_JOB: Record<CrewId, string> = {
   engineer: 'Power is yours. Kill the pump when the draw spikes. Vega will hate you for it.',
-  pilot: 'Navigation is yours. Shields eat Rook\'s bus. Take it anyway before the front lands.',
+  pilot: 'Navigation is yours. Shields eat Rook\'s power. Take it anyway before the front lands.',
   sparks:
     'Communications is yours. You see what broke, and you hold the key registry. When somebody says their key is signing without them, you are the only one who can send her to fix it.',
 }
@@ -23,7 +23,7 @@ export const VEGA_META = {
   honor:
     'You are the only body on this ship. Watch the glass, read the seal, and run. When they need something they will send a picture — and some of those pictures are lies.',
   blurb:
-    'You have every control and the only air gauge, and the controls are bolted to different ends of the hab. Rook will tell you to kill the pump. Your number will say absolutely not. Both of you are right. Say the air out loud.',
+    'You cannot hear the crew. You have every control and the only air gauge, and the controls are bolted to different ends of the hab. The crew reach you only through pictures on your glass, and some are forged, so read the seal before you run. You can still talk: say the air out loud. They just cannot talk back.',
   accent: '#3ee0ff',
 } as const
 
@@ -36,7 +36,7 @@ export const CREW_META: Record<
     title: 'Rook',
     sees: 'Reactor power',
     blurb:
-      'You are power. When the draw spikes, scream to kill the pump. Vega will refuse. Idris will want that same bus for shields.',
+      'You are power. When the draw spikes, the pump has to go off, and your only way to tell Vega is a card. Idris wants that same power for shields. Argue it out loud; she cannot hear any of it.',
     accent: '#ffb020',
   },
   pilot: {
@@ -54,6 +54,54 @@ export const CREW_META: Record<
     blurb:
       'You are communications. You see what broke, and you are the only one who can send her to rotate a stolen key.',
     accent: '#5cff9d',
+  },
+}
+
+/**
+ * What each seat is told in the lobby. Same three lines for everyone, plain
+ * instructions only: a teammate who had played it could not explain it, so
+ * anything that is not an instruction was cut.
+ */
+export interface Briefing {
+  /** The one rule, shown first. Worded the same as the top of public/how.html. */
+  rule: string
+  see: string
+  buttons: string
+  job: string
+}
+
+const CREW_RULE =
+  "Say what you see out loud, then press your button when it's your problem. If your log says NOT YOU, yell it."
+
+const CREW_JOB_LINE =
+  'Shout what you see. Send your card when it is yours.'
+
+export const BRIEFING: Record<RoleId, Briefing> = {
+  vega: {
+    rule: 'Only obey an order if it says SEALED. Walk to the room it names.',
+    see: 'Cabin air only. You cannot hear the crew.',
+    buttons:
+      'Valves and pump in the Air Plant. Shields in the Airlock. Key rotation in Comms, only while holding the token. BRACE anywhere. Tap a room on the map to walk there.',
+    job: 'When a card slams your screen, check the stamp. SEALED = do it. BROKEN SEAL = a hacker wrote it, ignore it. OLD COUNTER = a replay, ignore it. Walk to the room the card needs. Say your air out loud.',
+  },
+  engineer: {
+    rule: CREW_RULE,
+    see: 'Reactor power, and how hard the reactor is working.',
+    buttons: 'PUMP OFF, PUMP ON. The whole crew shares one cooldown.',
+    job: `When the draw spikes, the pump has to go off. ${CREW_JOB_LINE}`,
+  },
+  pilot: {
+    rule: CREW_RULE,
+    see: 'The dust storm clock.',
+    buttons: 'SHIELDS, BRACE. The whole crew shares one cooldown.',
+    job: `Send SHIELDS before the storm lands. Send BRACE when the clock reads 4. ${CREW_JOB_LINE}`,
+  },
+  sparks: {
+    rule: CREW_RULE,
+    see: 'The alarm log: what broke.',
+    buttons:
+      'SEAL PORT, SEAL STBD, ROTATE ROOK, ROTATE IDRIS, ROTATE CHEN. The whole crew shares one cooldown.',
+    job: `Seal the valve the log names. ${CREW_JOB_LINE} If someone yells NOT YOU, send ROTATE for them.`,
   },
 }
 
@@ -113,7 +161,7 @@ export const SIGNALS: {
     id: 'pump-off',
     label: 'PUMP OFF',
     mark: '⏻',
-    hint: 'Frees the bus · she has to be in the plant',
+    hint: 'Frees power for shields · she has to be in the plant',
     owner: 'engineer',
     sendsTo: 'pump',
     plate: 'art',
@@ -140,7 +188,7 @@ export const SIGNALS: {
     id: 'brace',
     label: 'BRACE',
     mark: '▣',
-    hint: 'Send at T-4 · she can hold on anywhere',
+    hint: 'Send at T-4 · she has to hold on in the last 3 seconds, anywhere',
     owner: 'pilot',
     sendsTo: 'anywhere',
     plate: 'art',

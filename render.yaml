@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: cosmic-call
+    runtime: docker
+    plan: free
+    # Closest Render region to Pittsburgh.
+    region: ohio
+    # Habs live in one process's memory. A second instance would hold different habs and a room code would stop resolving.
+    numInstances: 1
+    healthCheckPath: /api/health
+    # Every deploy restarts the process and drops every live round. Deploy by hand, never mid-judging.
+    autoDeployTrigger: "off"

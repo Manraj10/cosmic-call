@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import { CREW_META } from '@shared/content'
-import type { ClientView, IncidentReport } from '@shared/types'
+import { hearsSpeech } from '@shared/types'
+import type { ClientView, IncidentReport, StationId } from '@shared/types'
+import { speak } from '../audio'
+import { forgetHab, getSocket, sendAction } from '../net'
 
 /**
  * Mission Control reading the incident report back. The round is already graded
  * by the time this fires, so a slow or absent model costs a sentence and
  * nothing else — and with no key set the written line is what everyone hears.
  */
-function useRadioDebrief(r: IncidentReport | null, won: boolean) {
+function useRadioDebrief(r: IncidentReport | null, won: boolean, role: StationId | null) {
   const [line, setLine] = useState<{ text: string; by: string } | null>(null)
   useEffect(() => {
     if (!r) return
@@ -24,23 +27,28 @@ function useRadioDebrief(r: IncidentReport | null, won: boolean) {
         stolenFrom: r.stolenFrom ? CREW_META[r.stolenFrom].callsign : null,
         timeToRevoke: r.timeToRevoke,
         falseRevokes: r.falseRevokes,
+        wastedWalkSeconds: r.wastedWalkSeconds,
       }),
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((j) => {
-        if (live && j) setLine(j as { text: string; by: string })
+        if (!live || !j) return
+        const said = j as { text: string; by: string }
+        setLine(said)
+        // Same rule as the round: Vega and the board are never sent a voice.
+        if (hearsSpeech(role)) void speak(said.text, 'system')
       })
       .catch(() => {})
     return () => {
       live = false
     }
-  }, [r, won])
+  }, [r, won, role])
   return line
 }
 
 export function Debrief({ view }: { view: ClientView }) {
   const won = view.outcome === 'won'
-  const radio = useRadioDebrief(view.incident, won)
+  const radio = useRadioDebrief(view.incident, won, view.you.role)
   return (
     <div
       className="app stage"
@@ -68,12 +76,25 @@ export function Debrief({ view }: { view: ClientView }) {
       ) : null}
 
       <div className="grow" />
-      <button className="btn primary" onClick={() => location.reload()}>
-        run it again
-      </button>
+      {view.you.host ? (
+        <Rematch />
+      ) : (
+        <div className="tag" style={{ textAlign: 'center' }}>
+          waiting on the hab lead to run it again
+        </div>
+      )}
       <div className="tag" style={{ textAlign: 'center' }}>
         swap seats — everyone should get a turn as Vega
       </div>
+      <button
+        className="btn ghost"
+        onClick={() => {
+          forgetHab()
+          location.reload()
+        }}
+      >
+        leave hab
+      </button>
     </div>
   )
 }
@@ -137,7 +158,7 @@ function Incident({
       </div>
       {radio ? (
         <div className="incident-radio">
-          <span className="tag">mission control · {radio.by}</span>
+          <span className="tag">mission control · written by {radio.by === 'hab' ? 'hab log' : radio.by}</span>
           <p>{radio.text}</p>
         </div>
       ) : null}
@@ -147,8 +168,55 @@ function Incident({
           : r.timeToRevoke == null
             ? `GHOST held ${CREW_META[r.stolenFrom].callsign}'s key until the end. Every order it signed looked genuine on her glass — the only tell was in ${CREW_META[r.stolenFrom].callsign}'s own signing log.`
             : `${CREW_META[r.stolenFrom].callsign} spotted orders signed under their key and said so, and comms rotated it in ${r.timeToRevoke}s.`}
+        {r.wastedWalkSeconds > 0
+          ? ` Forged orders walked Vega ${r.wastedWalkSeconds}s across the hab — seconds spent in a corridor instead of at a panel.`
+          : r.forged > 0
+            ? ' She did not take one step for GHOST.'
+            : null}
       </div>
     </div>
+  )
+}
+
+/**
+ * The lead's button only. Everyone else follows the phase back to the lobby
+ * with their seats kept, where a page reload used to drop the whole table on
+ * the home screen to type the code again.
+ */
+function Rematch() {
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+  async function go() {
+    setBusy(true)
+    setNote(null)
+    try {
+      await sendAction({ type: 'rematch' })
+    } catch (err) {
+      // A Wi-Fi blip is not a dead hab. Reloading here would throw away a lobby
+      // the whole table is still sitting in.
+      if (!getSocket().connected) {
+        setNote(err instanceof Error ? err.message : 'Radio offline.')
+        return
+      }
+      // A reload rejoins the saved hab, which would land right back on this
+      // screen. Forget it so the reload lands on home with a fresh code.
+      try {
+        forgetHab()
+      } catch {
+        // Storage is off, so there was nothing saved to rejoin.
+      }
+      location.reload()
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <>
+      <button className="btn primary" disabled={busy} onClick={() => void go()}>
+        run it again
+      </button>
+      {note ? <div className="notice">{note}</div> : null}
+    </>
   )
 }
 

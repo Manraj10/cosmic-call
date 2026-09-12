@@ -11,6 +11,7 @@
   --alarm: #5cff9d;
   --danger: #ff3b1f;
   --ok: #6de08a;
+  --key: #ffdb86;
 
   color-scheme: dark;
   font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -1254,7 +1255,9 @@ body::after {
   font-size: 15px;
   font-weight: 800;
   letter-spacing: 0.14em;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
   color: var(--ink);
 }
 
@@ -1402,95 +1405,882 @@ body::after {
   color: var(--ink);
 }
 
+/* ---------- the hardware key ---------- */
+
+/*
+ * One object, one look, wherever it is: gold, round-ended, and this glyph.
+ * The gold is the big screen's token colour, so the room and the phone agree
+ * on what the key looks like. Drawn in currentColor so the same glyph reads
+ * gold on dark when the key is lying somewhere and dark on gold when it is in
+ * her hand. Sized in em so it scales with whatever it sits next to.
+ */
+:root {
+  --key-glyph:
+    radial-gradient(circle at 0.5em 0.5em, transparent 0 0.2em, currentColor 0.23em 0.46em, transparent 0.49em)
+      0 0 / 1em 1em no-repeat,
+    linear-gradient(currentColor 0 0) 0.9em 0.38em / 1.1em 0.24em no-repeat,
+    linear-gradient(currentColor 0 0) 1.42em 0.6em / 0.22em 0.4em no-repeat,
+    linear-gradient(currentColor 0 0) 1.78em 0.6em / 0.22em 0.28em no-repeat;
+}
+
+.habmap-token:not(.carried)::before,
+.token-ctl::before,
+.registry-note::before {
+  content: '';
+  flex: none;
+  width: 2em;
+  height: 1em;
+  background: var(--key-glyph);
+}
+
 /* ---------- HAB-7 map (Vega only) ---------- */
-.habdeck {
+
+.habmap {
+  display: grid;
+  gap: 10px;
+  padding: 12px 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+}
+
+/*
+ * The plan view drawn literally: the lock arm points up, plant and comms hang
+ * off either side, the spine sits where they meet. Same orientation as the big
+ * screen, so a finger pointed at the board lands on the same module here.
+ * The arms get their own tracks rather than living in the gaps, which is what
+ * lets a walk light the one corridor she is actually in.
+ */
+.habmap-deck {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr) 22px minmax(0, 1fr);
+  grid-template-rows: minmax(72px, auto) 24px minmax(72px, auto);
+  grid-template-areas:
+    '.     .     lock  .     .    '
+    '.     .     arm-l .     .    '
+    'plant arm-p spine arm-c comms';
+  padding: 9px 0;
+  background: radial-gradient(rgba(155, 129, 104, 0.16) 1px, transparent 1.5px) 0 0 / 12px 12px;
+}
+
+.habmap-plant {
+  grid-area: plant;
+}
+.habmap-lock {
+  grid-area: lock;
+}
+.habmap-spine {
+  grid-area: spine;
+}
+.habmap-comms {
+  grid-area: comms;
+}
+
+/* A pressurised tube: dark bore, hull rails, a dashed centreline. The negative
+   margin tucks each end under a module so the corridor reads as joined. */
+.habmap-arm {
+  align-self: center;
+  height: 14px;
+  margin-inline: -6px;
+  border-block: 2px solid var(--line);
+  background:
+    repeating-linear-gradient(90deg, rgba(155, 129, 104, 0.55) 0 4px, transparent 4px 10px) 0 50% / 100% 2px
+      no-repeat,
+    #0a0705;
+}
+
+.habmap-arm-plant {
+  grid-area: arm-p;
+}
+.habmap-arm-comms {
+  grid-area: arm-c;
+}
+
+.habmap-arm-lock {
+  grid-area: arm-l;
+  align-self: stretch;
+  justify-self: center;
+  width: 14px;
+  height: auto;
+  margin: -6px 0;
+  border-block: 0;
+  border-inline: 2px solid var(--line);
+  background:
+    repeating-linear-gradient(180deg, rgba(155, 129, 104, 0.55) 0 4px, transparent 4px 10px) 50% 0 / 2px 100%
+      no-repeat,
+    #0a0705;
+}
+
+.habmap-mod {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 5px;
+  padding: 14px 4px 12px;
+  text-align: center;
+  border: 2px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  transition:
+    transform 0.06s ease,
+    opacity 0.2s ease;
+}
+
+/* Every module is a walk she can start, so each wears the lit edge the file
+   already uses for "this is a throw, not a label". */
+.habmap:not(.walking) .habmap-mod:not(.is-here) {
+  box-shadow: inset 0 -3px rgba(62, 224, 255, 0.3);
+}
+
+.habmap-mod:not(:disabled):active {
+  transform: translateY(2px);
+}
+
+.habmap-mod:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 4px;
+}
+
+.habmap-mod:disabled {
+  cursor: default;
+}
+
+/* The junction, not a room. */
+.habmap-spine {
+  border-radius: 18px;
+  background: #0a0705;
+}
+
+.habmap-name {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.habmap-pips {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  max-width: 100%;
+  padding-top: 5px;
+  border-top: 1px dotted #5a4126;
+}
+
+.habmap-pip {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 9px;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.habmap-pip b {
+  font-weight: 600;
+  color: var(--dim);
+}
+
+/* Glyph and word both carry the state; the green is only the third say. */
+.habmap-pip::before {
+  flex: none;
+}
+
+.habmap-pip.state-open,
+.habmap-pip.state-on,
+.habmap-pip.state-up {
+  font-weight: 800;
+  color: var(--ok);
+}
+
+.habmap-pip.state-open::before,
+.habmap-pip.state-on::before,
+.habmap-pip.state-up::before {
+  content: '\25CF';
+}
+
+.habmap-pip.state-off,
+.habmap-pip.state-down,
+.habmap-pip.state-sealed {
+  color: var(--ink);
+}
+
+.habmap-pip.state-off::before,
+.habmap-pip.state-down::before {
+  content: '\25CB';
+  color: var(--dim);
+}
+
+.habmap-pip.state-sealed::before {
+  content: '\25A0';
+  color: var(--dim);
+}
+
+/* ---- markers clipped onto a module's edge ---- */
+
+.habmap-you,
+.habmap-token,
+.habmap-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+  padding: 0 5px;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+}
+
+.habmap-mod .habmap-you,
+.habmap-mod .habmap-token,
+.habmap-mod .habmap-go {
+  position: absolute;
+}
+
+/* Her: square, filled, her colour. */
+.habmap-you {
+  border-radius: 2px;
+  background: var(--air);
+  color: #08222b;
+}
+
+.habmap-mod .habmap-you {
+  top: -10px;
+  left: 3px;
+}
+
+/* The key lying somewhere: outlined, round-ended. */
+.habmap-token {
+  border: 1.5px solid var(--key);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--key);
+}
+
+.habmap-mod .habmap-token:not(.carried) {
+  right: 3px;
+  bottom: -10px;
+}
+
+/* The key in her hand rides inside her own marker, filled, glyph only. The
+   words stay in the tree for the screen reader. */
+.habmap-token.carried {
+  position: static;
+  height: 12px;
+  padding: 0 4px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--key);
+  color: #12100c;
+  font-size: 0;
+}
+
+.habmap-token.carried::before {
+  content: '';
+  width: 2em;
+  height: 1em;
+  font-size: 7px;
+  background: var(--key-glyph);
+}
+
+/* Where a sealed card wants her. A chevron, so it is a direction before it is
+   a colour. */
+.habmap-go {
+  padding: 0 11px 0 6px;
+  background: var(--ok);
+  color: #08221a;
+  clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, 0 100%);
+}
+
+.habmap-mod .habmap-go {
+  left: 3px;
+  bottom: -10px;
+}
+
+.habmap-mod.is-target {
+  border-color: var(--ok);
+}
+
+/* You are here: the one module with a fill and a ring outside its border. */
+.habmap-mod.is-here {
+  border-color: var(--air);
+  background: #0b1418;
+  box-shadow:
+    0 0 0 3px var(--panel),
+    0 0 0 5px var(--air),
+    0 0 24px rgba(62, 224, 255, 0.22);
+}
+
+.habmap-mod.is-here .habmap-name {
+  color: var(--air);
+}
+
+/* ---- on the move ---- */
+
+/*
+ * Motion on this screen means one thing: she is travelling. Nothing else on
+ * the map animates, so a moving corridor is readable from the corner of an eye
+ * while she watches the glass. Pods go dead for the walk but stay at full
+ * strength; only the ones she is not passing through step back.
+ */
+.habmap.walking {
+  border-color: rgba(62, 224, 255, 0.45);
+}
+
+.habmap.walking .habmap-mod:not(.habmap-spine, .is-here, .is-dest) {
+  opacity: 0.5;
+}
+
+/* The room she just left keeps its outline and loses its claim on her. */
+.habmap.walking .habmap-mod.is-here {
+  border-style: dashed;
+  border-color: var(--dim);
+  background: var(--panel-2);
+  box-shadow: none;
+}
+
+.habmap.walking .habmap-mod.is-here .habmap-name {
+  color: var(--dim);
+}
+
+.habmap.walking .habmap-mod.is-dest {
+  border-style: dashed;
+  border-color: var(--air);
+  background: #0b1418;
+  animation: habmap-arrive 1.1s ease-in-out infinite;
+}
+
+.habmap.walking .habmap-mod.is-dest .habmap-name {
+  color: var(--air);
+}
+
+/* The spine is on every route. Every walk is a hop to it, from it, or through it. */
+.habmap.walking .habmap-spine {
+  border-color: rgba(62, 224, 255, 0.6);
+}
+
+.habmap.walking .habmap-deck:has(.habmap-plant:is(.is-here, .is-dest)) .habmap-arm-plant,
+.habmap.walking .habmap-deck:has(.habmap-comms:is(.is-here, .is-dest)) .habmap-arm-comms {
+  border-color: var(--air);
+  background:
+    repeating-linear-gradient(90deg, var(--air) 0 6px, transparent 6px 12px) 0 50% / 12px 4px repeat-x,
+    #0b1418;
+  animation: habmap-run-x 0.45s linear infinite;
+}
+
+.habmap.walking .habmap-deck:has(.habmap-lock:is(.is-here, .is-dest)) .habmap-arm-lock {
+  border-color: var(--air);
+  background:
+    repeating-linear-gradient(180deg, var(--air) 0 6px, transparent 6px 12px) 50% 0 / 4px 12px repeat-y,
+    #0b1418;
+  animation: habmap-run-y 0.45s linear infinite;
+}
+
+/* The dashes run toward where she is going: plant is left, lock is up. */
+.habmap.walking .habmap-deck:has(.habmap-plant.is-dest) .habmap-arm-plant,
+.habmap.walking .habmap-deck:has(.habmap-comms.is-here) .habmap-arm-comms,
+.habmap.walking .habmap-deck:has(.habmap-lock.is-dest) .habmap-arm-lock {
+  animation-direction: reverse;
+}
+
+@keyframes habmap-run-x {
+  to {
+    background-position: 12px 50%;
+  }
+}
+
+@keyframes habmap-run-y {
+  to {
+    background-position: 50% 12px;
+  }
+}
+
+@keyframes habmap-arrive {
+  50% {
+    box-shadow:
+      0 0 0 3px var(--panel),
+      0 0 0 5px rgba(62, 224, 255, 0.55);
+  }
+}
+
+/* ---- the strip under the plan ---- */
+
+.habmap-status {
+  display: flex;
+  justify-content: center;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-align: center;
+}
+
+/* In transit this becomes the loudest line on the map: where, how long, how far. */
+.habmap.walking .habmap-status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 9px 10px 10px;
+  border: 2px dashed var(--air);
+  border-radius: 4px;
+  background: #0b1418;
+  text-align: left;
+}
+
+.habmap.walking .habmap-transit {
+  grid-row: 1;
+  grid-column: 2;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--air);
+}
+
+.habmap-status .habmap-you {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.habmap-eta {
+  grid-row: 1;
+  grid-column: 3;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--air);
+}
+
+/* Chevrons march through the stretch she has not covered yet; the fill eats
+   them as she goes. */
+.habmap-progress {
+  grid-column: 1 / -1;
+  height: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(62, 224, 255, 0.4);
+  background:
+    linear-gradient(to top right, transparent 0 38%, rgba(62, 224, 255, 0.4) 38% 62%, transparent 62%) 0 0 /
+      10px 50% repeat-x,
+    linear-gradient(to bottom right, transparent 0 38%, rgba(62, 224, 255, 0.4) 38% 62%, transparent 62%) 0
+      100% / 10px 50% repeat-x,
+    #0a0705;
+  animation: habmap-chevrons 0.5s linear infinite;
+}
+
+.habmap-progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--air);
+  box-shadow: 0 0 12px rgba(62, 224, 255, 0.6);
+}
+
+@keyframes habmap-chevrons {
+  to {
+    background-position:
+      10px 0,
+      10px 100%;
+  }
+}
+
+/* ---------- controls, by where she is standing ---------- */
+
+/*
+ * Three ways a control can be dead, and each looks like its reason.
+ *   walking      — the bank folds into one dashed strip that moves. Temporary.
+ *   not here     — nothing is drawn. A dotted, still, unfaded outline says the
+ *                  floor is empty; the map pips say what is bolted elsewhere.
+ *   unavailable  — the button is present and faded, the file's existing
+ *                  :disabled look, and its frame names the thing it is waiting on.
+ */
+
+.readout .air-value {
+  font-size: 46px;
+}
+
+.controls-where {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--air);
+}
+
+/* Her square, the same mark as YOU on the map. */
+.controls-where::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 1px;
+  background: var(--air);
+}
+
+.controls-where::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.controls-transit {
+  display: grid;
+  place-items: center;
+  min-height: 76px;
+  padding: 12px 14px;
+  border: 2px dashed var(--air);
+  border-radius: 4px;
+  background:
+    repeating-linear-gradient(90deg, rgba(62, 224, 255, 0.1) 0 2px, transparent 2px 14px),
+    #0b1418;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: var(--air);
+  animation: controls-passing 0.6s linear infinite;
+}
+
+/* Bulkheads going past the window. */
+@keyframes controls-passing {
+  to {
+    background-position: -14px 0;
+  }
+}
+
+.controls-empty {
+  display: grid;
+  place-items: center;
+  min-height: 76px;
+  padding: 12px 14px;
+  border: 2px dotted #5a4126;
+  border-radius: 4px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-align: center;
+  color: var(--dim);
+}
+
+/* The key as a control: round-ended like every other appearance of it. */
+.ctl.token-ctl {
+  border-color: var(--key);
+  border-radius: 38px;
+  background: rgba(255, 219, 134, 0.06);
+}
+
+.ctl.token-ctl::before {
+  font-size: 14px;
+  color: var(--key);
+}
+
+.ctl.token-ctl .state {
+  color: var(--key);
+}
+
+/* In her hand: filled, dark ink. The loud state is the one she is carrying. */
+.ctl.token-ctl.held {
+  background: var(--key);
+  box-shadow: inset 0 0 0 3px var(--bg);
+}
+
+.ctl.token-ctl.held::before,
+.ctl.token-ctl.held .state {
+  color: #12100c;
+}
+
+.ctl.token-ctl.held .name {
+  color: #5a4126;
+}
+
+/* ---------- key registry (at comms) ---------- */
+
+.registry {
   display: grid;
   gap: 8px;
   padding: 10px;
-  border: 1px solid var(--line);
-  background: var(--panel);
+  border: 2px solid var(--key);
+  border-radius: 6px;
+  background: rgba(255, 219, 134, 0.05);
 }
-.habdeck.moving { opacity: 0.92; }
-.hab-head { display: grid; gap: 2px; }
-.hab-here {
-  font-size: 22px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  color: var(--air);
-}
-.hab-holds { font-size: 11px; color: var(--dim); }
-.hab-transit {
+
+.registry-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 10px;
+  line-height: 1.4;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
   text-align: center;
-  padding: 14px;
-  letter-spacing: 0.08em;
-  color: var(--storm);
-  border: 1px dashed var(--storm);
+  color: var(--key);
 }
-.hab-grid {
+
+/* Locked for want of the key: the frame goes dashed and the glyph goes grey,
+   so the thing that is missing is the thing that is drawn. */
+.registry:has(.rev:disabled) {
+  border-style: dashed;
+  border-color: var(--line);
+  background: none;
+}
+
+.registry:has(.rev:disabled) .registry-note {
+  color: var(--dim);
+}
+
+/* ---------- rotation cards ---------- */
+
+/*
+ * No photograph, on purpose. Every other card is a picture; these are a gold
+ * slab with a stamped callsign and a weighted bottom lip, so a fast thumb
+ * cannot mistake one for a routine plate. Gold because the card is a summons
+ * for the key.
+ */
+.signalpad {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  gap: 8px;
 }
-.hab-mod {
-  position: relative;
+
+.padstatus {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--dim);
+}
+
+.pad .sig.sig-rotate {
+  border: 3px solid var(--key);
+  background: #0a0705;
+  box-shadow: inset 0 -5px var(--key);
+  padding-bottom: 14px;
+}
+
+.sig .thumb.type {
   display: grid;
-  gap: 2px;
-  padding: 10px 8px;
-  text-align: left;
-  border: 1px solid var(--line);
-  background: var(--panel-2);
-  min-height: 56px;
-}
-.hab-mod.go:not(:disabled) { border-color: var(--air); }
-.hab-mod.here {
-  border-color: var(--air);
-  box-shadow: inset 0 0 0 1px var(--air);
-}
-.hab-mod.token { border-color: var(--power); }
-.hab-mod:disabled { opacity: 0.45; }
-.hm-name { font-weight: 700; letter-spacing: 0.1em; font-size: 12px; }
-.hm-sub { font-size: 10px; color: var(--dim); }
-.hm-tok {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  color: var(--power);
-}
-.hm-tok.you { color: var(--air); }
-.tok-btn {
+  place-content: center;
+  justify-items: center;
+  gap: 4px;
   width: 100%;
-  padding: 10px;
-  border: 1px solid var(--power);
-  color: var(--power);
+  aspect-ratio: 1.2;
+  border: 0;
+  border-radius: 3px;
+  background: var(--key);
+  box-shadow:
+    inset 0 0 0 4px var(--key),
+    inset 0 0 0 5px rgba(18, 16, 12, 0.45);
+  color: #12100c;
+}
+
+.thumb.type .rotate-glyph {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.thumb.type .rotate-callsign {
+  font-size: clamp(16px, 5.4vw, 24px);
+  font-weight: 900;
+  line-height: 1;
   letter-spacing: 0.08em;
-  font-size: 11px;
 }
-.tok-btn.held { background: #2a1a08; }
-.registry { display: grid; gap: 6px; margin-top: 4px; }
-.controls.dimmed { opacity: 0.4; pointer-events: none; }
-.slam-go {
-  font-size: 12px;
-  letter-spacing: 0.14em;
-  color: var(--air);
-  margin: 4px 0 8px;
+
+.pad .sig.sig-rotate .name {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--key);
 }
+
+.sig.sig-rotate .why {
+  color: var(--ink);
+}
+
+/* The same slab, filling her glass where a photograph would. */
 .slam-type {
+  position: absolute;
+  top: 7%;
+  left: 5%;
+  right: 5%;
+  bottom: 26%;
   display: grid;
-  place-items: center;
-  min-height: 120px;
-  font-size: 28px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  background: #120e0a;
-  border-bottom: 1px solid var(--line);
+  place-content: center;
+  justify-items: center;
+  gap: 1vh;
+  padding: 16px;
+  border-radius: 6px;
+  background: var(--key);
+  color: #12100c;
+  text-align: center;
+  box-shadow:
+    0 0 0 3px var(--air),
+    0 24px 70px #000,
+    inset 0 0 0 10px var(--key),
+    inset 0 0 0 12px rgba(18, 16, 12, 0.5);
+  animation: slam-in 0.48s cubic-bezier(0.12, 0.82, 0.22, 1.05) both;
 }
-.thumb.type {
+
+.slam-type .rotate-glyph {
+  font-size: clamp(56px, 20vw, 140px);
+  line-height: 1;
+}
+
+.slam-type .rotate-callsign {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: clamp(52px, 19vw, 150px);
+  font-weight: 900;
+  line-height: 0.95;
+  letter-spacing: 0.04em;
+}
+
+.seal-slam-stale .slam-type {
+  box-shadow:
+    0 0 0 3px var(--power),
+    0 24px 70px #000,
+    inset 0 0 0 10px var(--key),
+    inset 0 0 0 12px rgba(18, 16, 12, 0.5);
+}
+
+.seal-slam-broken .slam-type {
+  box-shadow:
+    0 0 0 3px var(--danger),
+    0 24px 70px #000,
+    inset 0 0 0 10px var(--key),
+    inset 0 0 0 12px rgba(18, 16, 12, 0.5);
+  filter: saturate(0.5) contrast(1.06);
+}
+
+/* Only printed under a good seal, so it borrows the map's GO chevron. */
+.slam-go {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+  padding: 7px 22px 7px 12px;
+  background: var(--ok);
+  color: #08221a;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%);
+}
+
+/* ---------- radio link down ---------- */
+
+/* Sits above the glass: a card she acknowledges while this is showing never
+   reached the hab. */
+#root > .notice {
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: calc(10px + env(safe-area-inset-top)) 14px 10px;
+  border-width: 0 0 2px;
+  border-radius: 0;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+#root > .notice::before {
+  content: '\25CF';
+  color: var(--danger);
+  animation: notice-blink 1s steps(2, end) infinite;
+}
+
+@keyframes notice-blink {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .habmap-mod,
+  .ctl.token-ctl {
+    transition: none;
+  }
+
+  /* The dashed route, the chevron track and the progress fill still say
+     "travelling" standing still. */
+  .habmap.walking .habmap-mod.is-dest,
+  .habmap.walking .habmap-arm,
+  .habmap-progress,
+  .controls-transit,
+  .slam-type,
+  #root > .notice::before {
+    animation: none !important;
+  }
+}
+
+/* ---------- instruments on a short crew ---------- */
+
+/* One console can hold two or three dials. Each wears its owner's lit edge and
+   callsign, because "twenty-two" means nothing until the table knows whose. */
+.seat-readout {
+  box-shadow: inset 0 3px var(--accent);
+}
+
+.readout-seat {
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  color: var(--accent);
+}
+
+.readout.fill {
+  padding-bottom: 12px;
+}
+
+.alarm-log {
+  margin-top: 10px;
+  text-align: left;
+}
+
+/* Lobby briefing: three labelled lines, same shape for every seat. The label sits
+   on its own line so the instruction under it reads first. */
+.brief.briefing {
   display: grid;
-  place-items: center;
-  width: 100%;
-  aspect-ratio: 1.4;
-  font-size: 28px;
-  background: #120e0a;
+  gap: 10px;
+}
+.brief.briefing p {
+  margin: 0;
+}
+.brief.briefing b {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 2px;
+}
+.howlink {
+  display: block;
+  text-align: center;
+  padding: 10px 0;
+  min-height: 44px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.brief.briefing .brief-rule {
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1.4;
+  color: var(--ink, inherit);
 }

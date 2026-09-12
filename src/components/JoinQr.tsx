@@ -27,6 +27,20 @@ export function JoinQr({ code }: { code: string }) {
     }
   }, [url])
 
+  // A QR for localhost points the scanning phone at itself. Say so instead of
+  // printing a code that looks right and goes nowhere.
+  if (/^(localhost|127\.0\.0\.1|\[?::1\]?)$/.test(location.hostname)) {
+    return (
+      <div className="joinqr">
+        <div className="tag">
+          open this page from the tunnel URL
+          <br />
+          to get a code phones can scan
+        </div>
+      </div>
+    )
+  }
+
   if (!png) return null
 
   return (

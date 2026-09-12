@@ -10,6 +10,7 @@
  * being about relaying and starts being solitaire.
  */
 import { SIGNAL_OWNER } from '../shared/content.ts'
+import { HOP_SECONDS } from '../shared/habitat.ts'
 import { sealOrder } from '../shared/seal.ts'
 import { CREW_IDS, ROLE_IDS, hearsSpeech } from '../shared/types.ts'
 import { Hab } from '../server/game.ts'
@@ -62,6 +63,9 @@ hab.stopClock()
 
 const problems: string[] = []
 const view = (id: string) => hab.viewFor(id) as ClientView
+// Every refusal below is only evidence while the round is live. A finished round
+// refuses everything, and would turn this whole file green for the wrong reason.
+if (hab.phase !== 'play') problems.push(`the round ended before the checks ran (${hab.phase}), so every refusal is vacuous`)
 
 // --- who is allowed to hear the ship at all ---
 for (const role of ROLE_IDS) {
@@ -92,6 +96,8 @@ if (v.alarms.length) problems.push('Vega can read the alarm log')
 // She holds every control and no key. If she could sign, she could verify for
 // herself, and the crew would stop being the thing that vouches for an order.
 if (v.seal !== null) problems.push('Vega was issued a signing key')
+// Covers is a list of whose instruments a console reads. She reads none.
+if (v.covers !== null) problems.push(`Vega was told which seats she covers (${JSON.stringify(v.covers)})`)
 if (v.hab == null) problems.push('Vega has no body on the hab map')
 if (v.air == null) problems.push('Vega cannot see the air, which is the one thing she needs')
 if (v.order && /port|starboard|storm|t-\d|power \d/i.test(v.order.text)) {
@@ -141,6 +147,29 @@ if (chen.alarms.some((line) => /FRONT|RUNAWAY|SIGNAL|ACK|INBOUND|IMPACT|BRACE/i.
   problems.push(`Chen's log is saying someone else's job: ${chen.alarms.join(' / ')}`)
 }
 
+// Where she is standing is hers. A crew that could see it would stop asking her,
+// and the walk would stop being something the table has to talk about.
+for (const [name, crewView] of [['Rook', rook], ['Idris', idris], ['Chen', chen]] as const) {
+  if (crewView.hab !== null) problems.push(`${name} can see where Vega is standing`)
+}
+
+// Not just the seal field: no crew key may appear anywhere in what she or the
+// room receives, under any name.
+const crewKeys = [rook, idris, chen].flatMap((c) => (c.seal ? [c.seal.key] : []))
+const board = view('board')
+for (const [who, sent] of [['Vega', v], ['the board', board]] as const) {
+  const text = JSON.stringify(sent)
+  if (crewKeys.some((k) => text.includes(k))) problems.push(`${who}'s view carries a crew signing key`)
+}
+
+// --- the big screen ---
+if (!board.spectator) problems.push('the board has no spectator view')
+else {
+  if (!board.spectator.operator?.at) problems.push('the board cannot show where the operator is')
+  if (!Array.isArray(board.spectator.traffic)) problems.push('the board cannot show what hit her glass')
+}
+if (board.seal !== null) problems.push('the board was issued a signing key, and it sits in the middle of the room')
+
 // The ship talking must never carry the answer. If it names the valve, the
 // pump, the shields or the countdown, the table can stop talking.
 const spoiled = spoken.filter((line) =>
@@ -173,16 +202,6 @@ else {
   }
 }
 
-for (const [signal, owner] of Object.entries(SIGNAL_OWNER) as [SignalId, (typeof CREW_IDS)[number]][]) {
-  for (const other of CREW_IDS) {
-    if (other === owner) continue
-    // Correctly signed by the wrong console. Holding a valid key is not the
-    // same as owning the call, and the server has to enforce both.
-    const stolen = await send(hab, other, signal)
-    if (!stolen) problems.push(`${other} was allowed to send ${signal}`)
-  }
-}
-
 // Rotation is physical: only Vega at the registry with the token. Crew send
 // rotate cards; they do not press a registry button.
 for (const other of CREW_IDS) {
@@ -195,25 +214,178 @@ if (!(await hab.applyAction('vega', { type: 'revoke', seat: 'engineer' }))) {
   problems.push('Vega rotated a key without the token at Comms')
 }
 // Valves refuse outside the plant.
+if (view('vega').hab?.at === 'plant') problems.push('Vega started in the plant, so the valve check below proves nothing')
 if (!(await hab.applyAction('vega', { type: 'valve', valve: 'port', sealed: true }))) {
   problems.push('Vega sealed a valve from outside the Air Plant')
 }
 
-// Same second, opposite orders. If these two ever agree the fight is dead.
-{
-  const fight = new Hab(
-    'FIGHT',
+/** A fresh live round with only these seats taken, so no check inherits a cooldown. */
+function launch(code: string, crew: readonly CrewId[], withBoard = false) {
+  const h = new Hab(
+    code,
     { id: 'vega', name: 'Vega', role: null, ready: false, connected: true, host: true, socketId: 's' },
     7,
   )
-  fight.claim('vega', 'vega')
-  fight.setReady('vega', true)
-  for (const c of CREW_IDS) seat(fight, c)
-  fight.listener = { onView: () => {}, onSpeak: () => {} }
-  fight.start('vega')
-  const clock = fight as unknown as { tick: (dt: number) => void }
-  for (let i = 0; i < 270; i++) clock.tick(0.1)
-  fight.stopClock()
+  h.claim('vega', 'vega')
+  h.setReady('vega', true)
+  for (const c of crew) seat(h, c)
+  if (withBoard) seat(h, 'board')
+  h.listener = { onView: () => {}, onSpeak: () => {} }
+  const failed = h.start('vega')
+  if (failed) throw new Error(failed)
+  h.stopClock()
+  const clock = h as unknown as { tick: (dt: number) => void }
+  const tick = (seconds: number) => {
+    for (let i = 0; i < Math.round(seconds / 0.1); i++) clock.tick(0.1)
+  }
+  tick(0.1)
+  return { h, tick }
+}
+
+// --- a console sends only the cards of the seats it covers ---
+// The shared pad has a cooldown, so a refusal on a pad that just fired proves
+// nothing. Each card gets its own round, and after the refusals the console that
+// does cover it has to get the same card through. That is what makes the refusal
+// about ownership rather than timing.
+const SEATINGS: CrewId[][] = [
+  [...CREW_IDS],
+  ['engineer', 'pilot'],
+  ['engineer', 'sparks'],
+  ['pilot', 'sparks'],
+  ['engineer'],
+  ['pilot'],
+  ['sparks'],
+]
+for (const crew of SEATINGS) {
+  const table = crew.length === CREW_IDS.length ? 'full crew' : `${crew.join(' + ')} only`
+  const probe = launch('COVER', crew).h
+  const coverOf = new Map(crew.map((c) => [c, probe.viewFor(c)?.covers ?? null]))
+  if (probe.viewFor('vega')?.covers !== null) problems.push(`${table}: Vega was told which seats she covers`)
+  for (const c of crew) {
+    const covers = coverOf.get(c)
+    if (!covers?.includes(c)) problems.push(`${table}: ${c} does not cover its own seat (${JSON.stringify(covers)})`)
+    // On a full table, a console covering a second seat is a second pair of eyes
+    // on somebody else's instrument.
+    if (crew.length === CREW_IDS.length && covers && covers.length !== 1) {
+      problems.push(`full crew: ${c} covers ${covers.join(', ')}`)
+    }
+  }
+  for (const c of CREW_IDS) {
+    if (!crew.some((s) => coverOf.get(s)?.includes(c))) {
+      problems.push(`${table}: nobody covers ${c}, so its cards can never be sent`)
+    }
+  }
+
+  for (const [signal, owner] of Object.entries(SIGNAL_OWNER) as [SignalId, CrewId][]) {
+    const { h } = launch('COVER', crew)
+    for (const other of crew) {
+      if (coverOf.get(other)?.includes(owner)) continue
+      // Correctly signed with this console's own key, the way its phone would.
+      // Holding a valid key is not the same as owning the call.
+      if (!(await send(h, other, signal))) {
+        problems.push(`${table}: ${other} sent ${signal} without covering ${owner}`)
+      }
+      // Correctly signed with the owner's real key, relayed from a console that
+      // does not cover it.
+      const ownerSeal = crew.includes(owner) ? h.viewFor(owner)?.seal : null
+      if (ownerSeal) {
+        const tag = await sealOrder(ownerSeal.key, ownerSeal.roundId, owner, signal, ownerSeal.nextSeq)
+        const relayed = await h.applyAction(other, { type: 'signal', signal, seq: ownerSeal.nextSeq, tag })
+        if (!relayed) problems.push(`${table}: ${other} relayed ${owner}'s signed ${signal}`)
+      }
+    }
+    const coverer = crew.find((c) => coverOf.get(c)?.includes(owner))
+    if (coverer) {
+      const refused = await send(h, coverer, signal)
+      if (refused) problems.push(`${table}: ${coverer} covers ${owner} and still could not send ${signal}: ${refused}`)
+    }
+  }
+}
+
+// --- only her body moves, and only her hands hold the token ---
+{
+  const { h, tick } = launch('HANDS', CREW_IDS, true)
+  const outsiders = [...CREW_IDS, 'board']
+  const body = () => JSON.stringify(h.viewFor('vega')?.hab)
+  const before = body()
+  for (const who of outsiders) {
+    if (!(await h.applyAction(who, { type: 'walk', to: 'comms' }))) problems.push(`${who} was allowed to walk the operator`)
+    if (!(await h.applyAction(who, { type: 'token', take: true }))) problems.push(`${who} was allowed to pick up the token`)
+  }
+  if (body() !== before) problems.push(`somebody other than Vega moved her or the token: ${before} -> ${body()}`)
+
+  // Her own hands have to work, or every refusal above is a feature that is off.
+  // First empty-handed: at the registry without the token, which only the token
+  // itself can refuse.
+  const epochAtStart = h.viewFor('engineer')?.seal?.epoch
+  const set = await h.applyAction('vega', { type: 'walk', to: 'comms' })
+  if (set) problems.push(`Vega could not walk to comms: ${set}`)
+  tick(HOP_SECONDS + 0.3)
+  if (h.viewFor('vega')?.hab?.at !== 'comms') problems.push('Vega never reached comms, so the token check proves nothing')
+  if (!(await h.applyAction('vega', { type: 'revoke', seat: 'engineer' }))) {
+    problems.push('the registry rotated a key for an operator without the token')
+  }
+
+  // Then holding the token, but somewhere other than the registry.
+  const back = await h.applyAction('vega', { type: 'walk', to: 'spine' })
+  tick(HOP_SECONDS + 0.3)
+  const took = back ?? (await h.applyAction('vega', { type: 'token', take: true }))
+  if (took) problems.push(`Vega could not pick up the token on the spine: ${took}`)
+  if (!(await h.applyAction('vega', { type: 'revoke', seat: 'engineer' }))) {
+    problems.push('Vega rotated a key from the spine, away from the registry')
+  }
+  const walked = await h.applyAction('vega', { type: 'walk', to: 'comms' })
+  if (walked) problems.push(`Vega could not carry the token to comms: ${walked}`)
+  if (h.viewFor('vega')?.hab?.walkingTo === 'comms') {
+    if (!(await h.applyAction('vega', { type: 'revoke', seat: 'engineer' }))) {
+      problems.push('Vega rotated a key from the corridor')
+    }
+  }
+  if (h.viewFor('engineer')?.seal?.epoch !== epochAtStart) problems.push('a key rotated before she stood at the registry with the token')
+  tick(HOP_SECONDS + 0.3)
+  const arrived = h.viewFor('vega')?.hab
+  if (arrived?.at !== 'comms' || !arrived.holdingToken) {
+    problems.push(`Vega did not reach comms with the token: ${JSON.stringify(arrived)}`)
+  }
+
+  // She is at the registry with the token in her hand, so where she stands is
+  // not what refuses these.
+  const epoch = h.viewFor('engineer')?.seal?.epoch
+  for (const who of outsiders) {
+    if (!(await h.applyAction(who, { type: 'revoke', seat: 'engineer' }))) {
+      problems.push(`${who} rotated a key while she stood at the registry`)
+    }
+    if (!(await h.applyAction(who, { type: 'token', take: false }))) {
+      problems.push(`${who} made her put the token down`)
+    }
+  }
+  if (h.viewFor('engineer')?.seal?.epoch !== epoch) problems.push('a key rotated without Vega touching the registry')
+  if (!h.viewFor('vega')?.hab?.holdingToken) problems.push('the token left her hand without her')
+
+  const rotated = await h.applyAction('vega', { type: 'revoke', seat: 'engineer' })
+  if (rotated) problems.push(`Vega at the registry holding the token could not rotate: ${rotated}`)
+  else if (h.viewFor('engineer')?.seal?.epoch === epoch) problems.push('the registry took her rotation and the key stayed the same')
+
+  // Leaving the plant, she is still recorded as in it until she arrives, so
+  // only the corridor rule can refuse the pump she just walked away from.
+  await h.applyAction('vega', { type: 'walk', to: 'spine' })
+  tick(HOP_SECONDS + 0.3)
+  await h.applyAction('vega', { type: 'walk', to: 'plant' })
+  tick(HOP_SECONDS + 0.3)
+  const pumpBefore = h.viewFor('vega')?.pumpOn
+  const leaving = await h.applyAction('vega', { type: 'walk', to: 'spine' })
+  if (h.viewFor('vega')?.hab?.at !== 'plant' || leaving) {
+    problems.push(`Vega could not set off from the plant, so the corridor check proves nothing: ${leaving}`)
+  } else if (!(await h.applyAction('vega', { type: 'pump', on: !pumpBefore }))) {
+    problems.push('Vega worked the pump from the corridor')
+  }
+  if (h.phase !== 'play') problems.push('the hands round ended mid-check, so its refusals are vacuous')
+}
+
+// Same second, opposite orders. If these two ever agree the fight is dead.
+{
+  const { h: fight, tick } = launch('FIGHT', CREW_IDS)
+  tick(26.9)
   const vegaYell = fight.viewFor('vega')?.order?.text ?? ''
   const rookYell = fight.viewFor('engineer')?.order?.text ?? ''
   if (!/ABSOLUTELY NOT|KEEP THE PUMP|LOOKS FINE|AIR IS MINE/i.test(vegaYell)) {

@@ -14,10 +14,11 @@
  *
  * ## Why there are two implementations
  *
- * `crypto.subtle` only exists in a secure context. Phones join this game by
- * pointing a camera at `http://192.168.x.x:43127` on venue Wi-Fi, which is not
- * one, so on every actual player device `crypto.subtle` is `undefined`. Serving
- * HTTPS would mean a certificate warning between a judge and the game.
+ * `crypto.subtle` only exists in a secure context. A phone that joins over the
+ * public HTTPS tunnel has it. A phone that joins a laptop directly at
+ * `http://192.168.x.x` on a LAN or hotspot does not — there `crypto.subtle` is
+ * `undefined`, and serving HTTPS on a LAN means a certificate warning between a
+ * judge and the game.
  *
  * So: use the platform primitive when it is there (the server always has it),
  * and fall back to the SHA-256 below when it is not. `npm run crypto` asserts

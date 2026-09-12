@@ -1,0 +1,7 @@
+node_modules
+dist
+.git
+.claude
+*.log
+# A laptop .env can carry VITE_SOCKET_URL=http://192.168.x.x, which vite would bake into the bundle and point every phone at a LAN address.
+.env*

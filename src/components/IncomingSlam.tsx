@@ -1,5 +1,12 @@
 import { useEffect, useRef } from 'react'
-import { signalArt, signalLabel, signalSendsTo } from '@shared/content'
+import {
+  CREW_META,
+  REVOKE_TARGET,
+  signalArt,
+  signalLabel,
+  signalMark,
+  signalSendsTo,
+} from '@shared/content'
 import { MODULE_SHORT, moduleFor } from '@shared/habitat'
 import type { ClientView, SignalId } from '@shared/types'
 import { buzz } from '../haptics'
@@ -13,8 +20,12 @@ import { SealBadge } from './Seal'
  *
  * Since GHOST got on the bus, the picture is no longer enough. The seal is the
  * part she has to read, so an unsigned card gets a different colour, a
- * different buzz, and a confirm step her thumb cannot skip by muscle memory.
- * Destination text is why a forged order now costs her legs.
+ * different buzz, and "bin it" where her thumb expects "got it".
+ *
+ * RUN TO prints on every card, forged or not. Hiding it under a bad seal would
+ * let her skip the badge and just check whether a destination is printed — the
+ * verdict leaking through a second channel — and it would take away the thing
+ * the round is testing: a legible, urgent instruction she has to refuse.
  */
 export function IncomingSlam({ view }: { view: ClientView }) {
   const fresh = view.signals.filter((s) => s.fresh)
@@ -34,6 +45,7 @@ export function IncomingSlam({ view }: { view: ClientView }) {
   const bad = latest.seal !== 'sealed'
   const art = signalArt(latest.signal)
   const dest = moduleFor(signalSendsTo(latest.signal))
+  const target = REVOKE_TARGET[latest.signal]
 
   return (
     <div
@@ -46,7 +58,10 @@ export function IncomingSlam({ view }: { view: ClientView }) {
       {art ? (
         <img className="slam-plate" src={art} alt="" />
       ) : (
-        <div className="slam-type">{signalLabel(latest.signal)}</div>
+        <div className="slam-type" aria-hidden="true">
+          <span className="rotate-glyph">{signalMark(latest.signal)}</span>
+          {target ? <span className="rotate-callsign">{CREW_META[target].callsign}</span> : null}
+        </div>
       )}
       {dir ? <div className={`slam-dir ${dir.side}`}>{dir.mark}</div> : null}
       <div className="slam-caption">
