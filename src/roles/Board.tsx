@@ -39,7 +39,7 @@ export function Board({ view }: { view: ClientView }) {
       </header>
       {screenError ? <p role="status">{screenError}</p> : null}
       <section className="mc-mission">
-        <div><div className="mc-eyebrow">RESCUE WINDOW</div><h1>Bring everyone home.</h1><p>Four stations. One pair of hands. An untrusted channel.</p></div>
+        <div><div className="mc-eyebrow">HOW IT WORKS</div><h1>Vega can’t hear the crew. Something is forging her orders.</h1><p>Every order is signed. <b className="mc-ok">SEALED</b> is real. <b className="mc-bad">BROKEN SEAL</b> is a forgery. After 0:58 a stolen key makes forgeries look SEALED too.</p></div>
         <div className={`mc-countdown${remaining <= 15 ? ' mc-danger' : ''}`}><small>RESCUE ETA</small><strong>{String(Math.floor(remaining / 60)).padStart(2, '0')}<span>:</span>{String(remaining % 60).padStart(2, '0')}</strong></div>
       </section>
       <div className="mc-timeline" aria-label={`${elapsed} seconds elapsed of ${MISSION_SECONDS}`}><i style={{ width: `${Math.min(100, elapsed / MISSION_SECONDS * 100)}%` }} /></div>
