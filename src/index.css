@@ -1,0 +1,153 @@
+@import 'tailwindcss';
+
+/* TRACK B owns look-and-feel. This is a temporary wireframe so both
+   laptops can play tonight. Friend: replace freely. Xiao: avoid this file. */
+
+:root {
+  --bg: #140c08;
+  --ink: #f3e6d4;
+  --dim: #9a8168;
+  --line: #3a281c;
+  --o2: #3ee0ff;
+  --pwr: #ffb020;
+  --nav: #ff6a22;
+  --com: #5cff9d;
+  --warn: #ff3b1f;
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100svh;
+  width: 100%;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.shell {
+  min-height: 100svh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+}
+
+.panel {
+  border: 1px solid var(--line);
+  background: #1b110c;
+  padding: 14px;
+  margin: 10px 0;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  background: #2a1b14;
+  border: 1px solid #6a4a32;
+  padding: 12px 14px;
+  min-height: 48px;
+  flex: 1;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+}
+
+.btn.on {
+  background: #3a2a12;
+  border-color: var(--pwr);
+}
+
+.btn.alert {
+  border-color: var(--warn);
+  color: #ffd0c8;
+}
+
+.kicker {
+  color: var(--dim);
+  letter-spacing: 0.16em;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin: 0 0 8px;
+}
+
+input {
+  background: #0e0907;
+  border: 1px solid var(--line);
+  padding: 12px;
+  width: 100%;
+}
+
+.strobe {
+  animation: strobe 0.32s steps(2, end) infinite;
+}
+
+@keyframes strobe {
+  50% {
+    background: #5a140c;
+  }
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.grid3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.printer {
+  min-height: 120px;
+  background: #0a0806;
+  color: var(--com);
+  padding: 10px;
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.banner {
+  position: sticky;
+  top: 0;
+  background: #2a120c;
+  border: 1px solid var(--warn);
+  padding: 10px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.track-tag {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 6px;
+}
