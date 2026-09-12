@@ -64,7 +64,7 @@ export const ITEM_LABELS: Record<ItemType, string> = {
 
 export const ITEM_SHORT: Record<ItemType, string> = {
   repair_kit: "KIT",
-  oxygen_canister: "O₂ CAN",
+  oxygen_canister: "O2 CAN",
   battery_cell: "CELL",
   medical_kit: "MEDKIT",
   coolant_cartridge: "COOLANT",
