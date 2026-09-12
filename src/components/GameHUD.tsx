@@ -3,23 +3,17 @@
 import { HabitatMap } from "@/components/HabitatMap";
 import { TaskPanel } from "@/components/TaskPanel";
 import { Button } from "@/components/ui/button";
-import { ITEM_LABELS, ROOM_LABELS, SYSTEM_LABELS, type RoomId, type SystemId } from "@/shared/constants";
+import { ITEM_LABELS, ROOM_LABELS, type RoomId } from "@/shared/constants";
 import type { ClientState } from "@/shared/protocol";
 import { formatEta, haptic } from "@/lib/utils";
 import { useEffect, useMemo, useRef, useState } from "react";
-
-const STATUS_COLOR = {
-  STABLE: "text-cyan-300",
-  WARNING: "text-amber-300",
-  CRITICAL: "text-red-400 crit-pulse",
-  OFFLINE: "text-white/40",
-};
 
 export function GameHUD({
   state,
   onMove,
   onPickup,
   onDrop,
+  onTrade,
   onUpdate,
   onConfirm,
   onHold,
@@ -30,6 +24,7 @@ export function GameHUD({
   onMove: (room: RoomId) => void;
   onPickup: (id: string) => void;
   onDrop: () => void;
+  onTrade: (targetId: string) => void;
   onUpdate: (taskId: string, payload: unknown) => void;
   onConfirm: (taskId: string, payload: unknown) => void;
   onHold: (taskId: string, holding: boolean) => void;
@@ -75,7 +70,7 @@ export function GameHUD({
         <div className="min-w-0">
           <div className="truncate font-display text-sm text-white">{you?.name}</div>
           <div className="truncate font-mono text-[10px] tracking-widest text-cyan-300/80">
-            {you?.roleTitle} · TAP MAP TO WALK
+            {you?.roleTitle}
           </div>
         </div>
         <div className="text-center">
@@ -88,50 +83,29 @@ export function GameHUD({
             {eta}
           </div>
         </div>
-        <div className="text-right font-mono text-[10px] text-white/50">
-          SCORE {state.score.toLocaleString()}
+        <div className="text-right">
+          {you && you.health < 40 ? (
+            <div className="font-display text-sm text-red-400">HURT {you.health}</div>
+          ) : (
+            <div className="font-mono text-[10px] text-white/40">{you?.inventory ? ITEM_LABELS[you.inventory] : "EMPTY HANDS"}</div>
+          )}
         </div>
       </header>
 
       <div
         className={`relative z-10 hidden flex-1 gap-3 overflow-hidden p-3 lg:grid ${
           atConsole
-            ? "grid-cols-[180px_minmax(240px,0.7fr)_minmax(340px,1.15fr)]"
-            : "grid-cols-[220px_minmax(0,1fr)_minmax(280px,380px)]"
+            ? "grid-cols-[minmax(240px,0.85fr)_minmax(340px,1.15fr)]"
+            : "grid-cols-[minmax(0,1fr)_minmax(280px,400px)]"
         }`}
       >
-        <aside className="glass flex flex-col gap-2 overflow-y-auto rounded-xl p-3">
-          <Tank label="O₂ TANK" pct={state.habitat.oxygenPct} warn={42} crit={22} />
-          <Tank label="BATTERY" pct={state.habitat.batteryPct} warn={28} crit={12} />
-          <Sys k="LIFE SUPPORT" v={state.habitat.oxygen} />
-          <Sys k="POWER" v={state.habitat.power} />
-          <Sys k="THERMAL" v={state.habitat.thermal} />
-          <Sys k="COMMS" v={state.habitat.comms} />
-          <div className="font-mono text-[10px] text-white/45">CABIN {state.habitat.tempC.toFixed(0)}°C</div>
-          {state.incident && (
-            <div className="rounded border border-orange-400/30 bg-orange-400/10 p-2">
-              <div className="font-mono text-[9px] tracking-widest text-orange-300">{state.incident.title}</div>
-              <p className="mt-1 text-xs text-orange-50">{state.incident.cause || state.incident.pulse}</p>
-              {state.incident.cause && state.incident.pulse && (
-                <p className="mt-1 text-[11px] text-amber-100">{state.incident.pulse}</p>
-              )}
-            </div>
-          )}
-          <div className="mt-2 font-mono text-[10px] tracking-[0.3em] text-amber-300">LIVE FAILURE</div>
-          {state.emergencies.length === 0 && <div className="text-xs text-white/40">None yet. Talk anyway.</div>}
-          {state.emergencies.map((e) => (
-            <div key={e.id} className="rounded bg-red-500/10 px-2 py-1 text-xs text-red-200">
-              {e.title}
-            </div>
-          ))}
-          {state.hasCommsIntel && state.missionControl && (
-            <div className="mt-auto rounded border border-orange-400/30 bg-orange-400/10 p-2 text-xs text-orange-100">
-              <div className="font-mono text-[9px] tracking-widest">MISSION CONTROL</div>
-              {state.missionControl}
-            </div>
-          )}
-        </aside>
         <div className="flex min-h-0 flex-col">
+          {state.incident && (
+            <div className="mb-2 rounded-md border border-orange-400/35 bg-orange-400/10 px-3 py-2">
+              <div className="font-mono text-[10px] tracking-[0.28em] text-orange-300">{state.incident.title}</div>
+              <p className="text-xs text-orange-50">{state.incident.pulse || state.incident.cause}</p>
+            </div>
+          )}
           {atConsole && you && (
             <div className="mb-2 rounded-md border border-cyan-300/40 bg-cyan-400/10 px-3 py-2 font-display text-sm tracking-widest text-cyan-100">
               CONSOLE OPEN · {ROOM_LABELS[you.location].toUpperCase()}
@@ -140,16 +114,14 @@ export function GameHUD({
           <HabitatMap state={state} onMove={move} onPickup={onPickup} clockSkew={clockSkew} />
         </div>
         <aside className="flex flex-col gap-3 overflow-y-auto">
-          <YouPanel you={you} gauges={state.gauges} onDrop={onDrop} />
-          {floorItems.length > 0 && (
-            <div className="space-y-1">
-              {floorItems.map((it) => (
-                <Button key={it.id} className="h-12 w-full" variant="warn" onClick={() => onPickup(it.id)}>
-                  TAP TO GRAB {ITEM_LABELS[it.type].toUpperCase()}
-                </Button>
-              ))}
-            </div>
-          )}
+          <HandsBar
+            you={you}
+            players={state.players}
+            floorItems={floorItems}
+            onPickup={onPickup}
+            onDrop={onDrop}
+            onTrade={onTrade}
+          />
           {myTasks.length === 0 && (
             <div className="glass p-4 text-sm text-white/60">No procedure on your board. Help the other station.</div>
           )}
@@ -168,12 +140,6 @@ export function GameHUD({
       </div>
 
       <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden pb-[env(safe-area-inset-bottom)] lg:hidden">
-        <div className="grid shrink-0 grid-cols-4 gap-1 px-2 pt-2">
-          <Sys k="O2" v={state.habitat.oxygen} compact />
-          <Sys k="PWR" v={state.habitat.power} compact />
-          <Sys k="HEAT" v={state.habitat.thermal} compact />
-          <Sys k="COM" v={state.habitat.comms} compact />
-        </div>
         {state.incident && (
           <div className="mx-2 mt-2 shrink-0 rounded-md border border-orange-400/35 bg-orange-400/10 px-2 py-1.5">
             <div className="font-mono text-[9px] tracking-[0.28em] text-orange-300">{state.incident.title}</div>
@@ -211,7 +177,7 @@ export function GameHUD({
         </div>
         {crewOpen && (
           <div className="shrink-0 px-2 pt-1">
-            <CrewList state={state} youId={state.you} onRevive={onRevive} />
+            <CrewList state={state} youId={state.you} onRevive={onRevive} onTrade={onTrade} you={you} />
           </div>
         )}
         {myTasks.length > 1 && (
@@ -225,19 +191,20 @@ export function GameHUD({
                   focus?.id === t.id ? "bg-orange-500 text-black" : "bg-white/10 text-white/80"
                 }`}
               >
-                {t.youHaveControl ? "DIAL" : "SAY"} · {t.title}
+                {t.youHaveControl ? "SET" : "SAY"} · {t.title}
               </button>
             ))}
           </div>
         )}
         <div className="min-h-0 flex-1 overflow-y-auto p-2">
-          <YouPanel you={you} gauges={state.gauges} onDrop={onDrop} compact />
-          {floorItems.length > 0 &&
-            floorItems.map((it) => (
-              <Button key={it.id} className="mt-2 h-12 w-full" variant="warn" onClick={() => onPickup(it.id)}>
-                TAP TO GRAB {ITEM_LABELS[it.type].toUpperCase()}
-              </Button>
-            ))}
+          <HandsBar
+            you={you}
+            players={state.players}
+            floorItems={floorItems}
+            onPickup={onPickup}
+            onDrop={onDrop}
+            onTrade={onTrade}
+          />
           {focus ? (
             <div className="mt-2">
               <TaskPanel
@@ -269,101 +236,65 @@ export function GameHUD({
   );
 }
 
-function Tank({ label, pct, warn, crit }: { label: string; pct: number; warn: number; crit: number }) {
-  const color = pct <= crit ? "#ff3b4e" : pct <= warn ? "#ffb020" : "#7ee7ff";
-  return (
-    <div>
-      <div className="flex justify-between font-mono text-[9px] tracking-widest text-white/50">
-        <span>{label}</span>
-        <span style={{ color }}>{pct.toFixed(0)}%</span>
-      </div>
-      <div className="mt-1 h-3 overflow-hidden rounded-sm bg-black/50 ring-1 ring-white/10">
-        <div className="h-full transition-all" style={{ width: `${Math.max(2, Math.min(100, pct))}%`, background: color }} />
-      </div>
-    </div>
-  );
-}
-
-function Sys({ k, v, compact }: { k: string; v: keyof typeof STATUS_COLOR | string; compact?: boolean }) {
-  const color = STATUS_COLOR[v as keyof typeof STATUS_COLOR] || "text-white";
-  return (
-    <div className={`rounded bg-black/30 px-2 ${compact ? "py-1" : "py-2"}`}>
-      <div className="font-mono text-[9px] tracking-widest text-white/45">{k}</div>
-      <div className={`font-display ${compact ? "text-sm" : "text-lg"} ${color}`}>{String(v)}</div>
-    </div>
-  );
-}
-
-function YouPanel({
+function HandsBar({
   you,
-  gauges,
+  players,
+  floorItems,
+  onPickup,
   onDrop,
-  compact,
+  onTrade,
 }: {
   you: ClientState["players"][number] | undefined;
-  gauges: Record<string, string>;
+  players: ClientState["players"];
+  floorItems: ClientState["items"];
+  onPickup: (id: string) => void;
   onDrop: () => void;
-  compact?: boolean;
+  onTrade: (id: string) => void;
 }) {
   if (!you) return null;
+  const here = players.filter(
+    (p) =>
+      p.id !== you.id &&
+      p.kind !== "monitor" &&
+      !p.incapacitated &&
+      p.location === you.location &&
+      !p.movingTo &&
+      !you.movingTo,
+  );
   return (
     <div className="glass rounded-xl p-3">
-      <div className="grid grid-cols-3 gap-2 text-center">
-        <Meter label="HEALTH" v={you.health} warn={40} />
-        <Meter label="SUIT O₂" v={you.suitOxygen} warn={35} />
-        <Meter label="RAD" v={you.radiation} invert warn={30} />
-      </div>
-      <div className="mt-2 flex items-center justify-between text-xs">
-        <span className="text-white/70">
+      <div className="flex items-center justify-between gap-2 text-sm">
+        <span className="text-white/80">
           {ROOM_LABELS[you.location]}
-          {you.movingTo ? ` → walking to ${ROOM_LABELS[you.movingTo]}` : " · tap a module to walk"}
+          {you.movingTo ? ` → ${ROOM_LABELS[you.movingTo]}` : ""}
         </span>
-        <span className="text-amber-200">
+        <span className="font-display text-amber-200">
           {you.inventory ? ITEM_LABELS[you.inventory] : "EMPTY HANDS"}
         </span>
       </div>
+      {floorItems.map((it) => (
+        <Button key={it.id} className="mt-2 h-12 w-full" variant="warn" onClick={() => onPickup(it.id)}>
+          GRAB {ITEM_LABELS[it.type].toUpperCase()}
+        </Button>
+      ))}
+      {you.inventory &&
+        here.map((p) => (
+          <Button
+            key={p.id}
+            className="mt-2 h-12 w-full"
+            variant="cyan"
+            onClick={() => onTrade(p.id)}
+          >
+            {p.inventory
+              ? `SWAP ${ITEM_LABELS[you.inventory!]} FOR ${ITEM_LABELS[p.inventory]} WITH ${p.name.toUpperCase()}`
+              : `HAND ${ITEM_LABELS[you.inventory!]} TO ${p.name.toUpperCase()}`}
+          </Button>
+        ))}
       {you.inventory && (
         <Button size="sm" variant="ghost" className="mt-2 w-full" onClick={onDrop}>
-          DROP {ITEM_LABELS[you.inventory]}
+          DROP HERE
         </Button>
       )}
-      {!compact && (
-        <div className="mt-2 grid grid-cols-2 gap-1">
-          {Object.entries(gauges).map(([k, v]) => (
-            <div key={k} className="rounded bg-black/30 px-2 py-1">
-              <div className="font-mono text-[9px] text-cyan-300/60">{k}</div>
-              <div className="font-display text-sm tabular-nums">{v}</div>
-            </div>
-          ))}
-        </div>
-      )}
-      {compact && Object.keys(gauges).length > 0 && (
-        <div className="mt-2 flex gap-1 overflow-x-auto">
-          {Object.entries(gauges).map(([k, v]) => (
-            <div key={k} className="shrink-0 rounded bg-black/30 px-2 py-1">
-              <div className="font-mono text-[9px] text-cyan-300/60">{k}</div>
-              <div className="font-display text-sm tabular-nums">{v}</div>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="mt-2 font-mono text-[9px] tracking-widest text-white/35">
-        {you.responsibilities.map((s) => SYSTEM_LABELS[s as SystemId]).join(" · ")}
-      </div>
-    </div>
-  );
-}
-
-function Meter({ label, v, warn, invert }: { label: string; v: number; warn: number; invert?: boolean }) {
-  const bad = invert ? v >= warn : v <= warn;
-  const width = Math.max(0, Math.min(100, invert ? 100 - v : v));
-  return (
-    <div>
-      <div className="font-mono text-[9px] text-white/40">{label}</div>
-      <div className={`font-display text-lg ${bad ? "text-red-400" : "text-cyan-200"}`}>{v}%</div>
-      <div className="meter-bar mt-1">
-        <span style={{ width: `${width}%`, background: bad ? "#ff3b4e" : "#7ee7ff" }} />
-      </div>
     </div>
   );
 }
@@ -371,33 +302,47 @@ function Meter({ label, v, warn, invert }: { label: string; v: number; warn: num
 function CrewList({
   state,
   youId,
+  you,
   onRevive,
+  onTrade,
 }: {
   state: ClientState;
   youId: string;
+  you: ClientState["players"][number] | undefined;
   onRevive: (id: string) => void;
+  onTrade: (id: string) => void;
 }) {
   return (
     <ul className="space-y-2">
-      {state.players.map((p) => (
-        <li key={p.id} className="glass flex items-center gap-3 rounded-xl p-3">
-          <span className="h-8 w-8 rounded-full" style={{ background: p.color }} />
-          <div className="flex-1">
-            <div className="font-medium">
-              {p.name} {p.id === youId ? "(you)" : ""}
-            </div>
-            <div className="font-mono text-[10px] text-white/50">
-              {p.roleTitle} · {ROOM_LABELS[p.location]} · HP {p.health}%
-              {p.inventory ? ` · ${ITEM_LABELS[p.inventory]}` : ""}
-            </div>
-          </div>
-          {p.incapacitated && p.id !== youId && (
-            <Button size="sm" variant="danger" onClick={() => onRevive(p.id)}>
-              REVIVE
-            </Button>
-          )}
-        </li>
-      ))}
+      {state.players
+        .filter((p) => p.kind !== "monitor")
+        .map((p) => {
+          const sameRoom = you && p.location === you.location && !p.movingTo && !you.movingTo;
+          return (
+            <li key={p.id} className="glass flex items-center gap-3 rounded-xl p-3">
+              <span className="h-8 w-8 rounded-full" style={{ background: p.color }} />
+              <div className="flex-1">
+                <div className="font-medium">
+                  {p.name} {p.id === youId ? "(you)" : ""}
+                </div>
+                <div className="font-mono text-[10px] text-white/50">
+                  {ROOM_LABELS[p.location]}
+                  {p.inventory ? ` · ${ITEM_LABELS[p.inventory]}` : ""}
+                </div>
+              </div>
+              {p.incapacitated && p.id !== youId && (
+                <Button size="sm" variant="danger" onClick={() => onRevive(p.id)}>
+                  REVIVE
+                </Button>
+              )}
+              {p.id !== youId && you?.inventory && sameRoom && !p.incapacitated && (
+                <Button size="sm" variant="cyan" onClick={() => onTrade(p.id)}>
+                  {p.inventory ? "SWAP" : "HAND"}
+                </Button>
+              )}
+            </li>
+          );
+        })}
     </ul>
   );
 }

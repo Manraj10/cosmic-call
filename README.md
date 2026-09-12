@@ -58,7 +58,7 @@ Exact numbers live on **personal boards**. The shared map only shows STABLE / WA
 
 Puzzles are **deterministic split-information boards**. Crises spawn as **one named habitat failure with two consoles** (a hull breach is air AND heat through the same hole). Overshooting your dial **changes their number** — it is not a second unrelated minigame. The person with the dial never sees the numbers they need.
 
-On a phone the **map stays on screen** with the console docked underneath. Walk with the module chips or the WALK TO button. No Map / Task / Crew tabs.
+On a phone the **map stays on screen** with the console docked underneath. Walk with the module chips or the WALK TO button. Stand in the same module to **hand or swap kits**. The Habitat Monitor keeps the full system wall (comms, medical, tanks). Astronaut screens only show the numbers that score.
 
 ## Roles
 

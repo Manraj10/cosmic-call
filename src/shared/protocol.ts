@@ -306,6 +306,7 @@ export type ClientEvent =
   | { type: "move"; room: RoomId }
   | { type: "pickup"; itemId: string }
   | { type: "drop" }
+  | { type: "trade"; targetId: string }
   | { type: "task_update"; taskId: string; payload: unknown }
   | { type: "task_confirm"; taskId: string; payload: unknown }
   | { type: "hold"; taskId: string; holding: boolean }

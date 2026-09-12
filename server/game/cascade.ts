@@ -123,53 +123,35 @@ export function worksheet(type: string, hasControl: boolean): string[] {
   }
   switch (type) {
     case "oxygen_leak":
-      return [
-        "YOU HAVE crew and recycle. ASK Thermal for RATE. ASK hull for LEAK.",
-        "Set (crew x rate) + leak - recycle. Extra liters kill the heater.",
-      ];
+      return ["Ask RATE and LEAK. Set (CREW x RATE) + LEAK - RECYCLE."];
     case "heater":
-      return [
-        "YOU HAVE cabin and rise rate. ASK Life Support for comfort C. ASK hull for dust seconds.",
-        "Then cut it. Extra heat steals O2 production.",
-      ];
+      return ["Ask COMFORT and DUST. Then cut the heater."];
     case "power_split":
-      return [
-        "ASK every station for their critical kW. Set each slider to that.",
-        "Sum must equal the bus. Leftover dumps as heat and shoves Comms' plasma.",
-      ];
+      return ["Ask each station for their number. Sliders must match. Sum = BUS."];
     case "freq_tune":
-      return [
-        "YOU add beacon + interference + plasma.",
-        "A miss leaves Power flying blind.",
-      ];
+      return ["Add BEACON + OFFSET + PLASMA."];
     case "med_dose":
-      return [
-        "YOU HAVE mass. ASK Comms for protocol mg/kg. ASK Life Support for adjuvant.",
-        "Overdose browns the solar slew.",
-      ];
+      return ["Ask PROTOCOL and ADJUVANT. MASS x PROTOCOL + ADJUVANT."];
     case "solar_angle":
-      return [
-        "Rotate (optimal sun + bias) - current park.",
-        "A miss starves Medical's bus.",
-      ];
+      return ["Ask SUN and BIAS. Rotate (SUN + BIAS) - PARK."];
     case "co2_route":
-      return ["Combine both clues. Commit that path — not a shortcut."];
+      return ["Combine both clues. Commit that path."];
     case "pressure_patch":
-      return ["Foam = differential x punctures. Undercharge leaks. Overcharge clogs a vent."];
+      return ["Ask DIFF and HOLES. Foam = DIFF x HOLES."];
     case "valve_logic":
-      return ["Colors are order. Numbers are which valve. Open that sequence."];
+      return ["Colors are order. Numbers are which valve."];
     case "power_surge":
-      return ["Keep the one branch the crew named. Trip the others."];
+      return ["Keep the one branch they named. Trip the others."];
     case "reactor_reset":
       return ["Multiply the two codes. Both CONFIRM the same product."];
     case "airlock_seal":
-      return ["Two people walk here and hold SEAL together."];
+      return ["Two people hold SEAL together."];
     case "memory_code":
-      return ["Type the AUTH CODE Mission Control already read. It is not on this pad."];
+      return ["Type the AUTH CODE they heard. It is not on this pad."];
     case "pattern":
-      return ["Read the rule, type the next number. Guessing desyncs the uplink."];
+      return ["Ask the rule. Type the next number."];
     default:
-      return ["Talk out loud. The habitat accepts one physical answer."];
+      return ["Talk. Set the one number they give you."];
   }
 }
 

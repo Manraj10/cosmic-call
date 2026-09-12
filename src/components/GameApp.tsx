@@ -146,6 +146,7 @@ export function GameApp() {
           onMove={(room: RoomId) => emit("move", { room })}
           onPickup={(itemId) => emit("pickup", { itemId })}
           onDrop={() => emit("drop")}
+          onTrade={(targetId) => emit("trade", { targetId })}
           onUpdate={(taskId, payload) => emit("task_update", { taskId, payload })}
           onConfirm={(taskId, payload) => emit("task_confirm", { taskId, payload })}
           onHold={(taskId, holding) => emit("hold", { taskId, holding })}

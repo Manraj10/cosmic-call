@@ -30,7 +30,7 @@ export function RoleIntro({ state, onReady }: { state: ClientState; onReady: () 
           Failures come as one hole with two consoles. If you overshoot, their number changes — it is the same wound, not a second game.
         </p>
         <p className="mt-2 rounded-md border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs text-cyan-50">
-          Phone: map stays up. Walk with WALK TO or tap a module. Shout the big numbers. Confirm only in that room.
+          The big +/- number is the answer. Wrong setting hurts the habitat. Stand in the same room to HAND a kit to a crewmate.
         </p>
         <div className="mt-6 flex items-center justify-between">
           <div className="font-mono text-cyan-200/60">{you?.name}</div>

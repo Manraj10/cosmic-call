@@ -392,6 +392,45 @@ export class GameRoom {
     this.broadcast();
   }
 
+  trade(fromId: string, toId: string) {
+    const a = this.players.get(fromId);
+    const b = this.players.get(toId);
+    if (!a || !b || this.phase !== "playing") return;
+    if (a.kind === "monitor" || b.kind === "monitor") return;
+    if (a.astro.incapacitated || b.astro.incapacitated) return;
+    if (!a.astro.inventory) {
+      this.whisper(a, "Empty hands — grab a kit first.");
+      return;
+    }
+    const now = Date.now();
+    if (currentRoom(a.astro, now) !== currentRoom(b.astro, now)) {
+      this.whisper(a, `Stand in the same module as ${b.name} to hand it over.`);
+      return;
+    }
+    const itemA = this.items.find((i) => i.carriedBy === a.id);
+    const itemB = this.items.find((i) => i.carriedBy === b.id);
+    const gave = a.astro.inventory;
+    const took = b.astro.inventory;
+    a.astro.inventory = took;
+    b.astro.inventory = gave;
+    if (itemA) itemA.carriedBy = b.id;
+    if (itemB) {
+      itemB.carriedBy = a.id;
+    } else if (itemA) {
+      itemA.location = "carried";
+    }
+    if (took) {
+      this.push("ok", `${a.name} swapped ${ITEM_LABELS[gave]} for ${ITEM_LABELS[took]} with ${b.name}.`);
+      this.whisper(a, `Swapped. You now hold ${ITEM_LABELS[took]}.`);
+      this.whisper(b, `${a.name} swapped. You now hold ${ITEM_LABELS[gave]}.`);
+    } else {
+      this.push("ok", `${a.name} handed ${ITEM_LABELS[gave]} to ${b.name}.`);
+      this.whisper(a, `Handed ${ITEM_LABELS[gave]} to ${b.name}.`);
+      this.whisper(b, `${a.name} handed you the ${ITEM_LABELS[gave]}.`);
+    }
+    this.broadcast();
+  }
+
   revive(id: string, targetId: string) {
     const p = this.players.get(id);
     const t = this.players.get(targetId);
@@ -470,6 +509,7 @@ export class GameRoom {
 
     const used = consumeItem(this, p, puzzle.requiredItem);
     const result = applyPuzzle(puzzle, extractPayload(t.control, payload), this.sim);
+    this.whisper(p, result.explanation);
     this.finishTask(t, result, used);
   }
 

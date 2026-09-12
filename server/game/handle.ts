@@ -29,11 +29,18 @@ export function handlePlayEvent(
     case "drop":
       room.drop(playerId);
       break;
+    case "trade":
+      room.trade(playerId, String(data?.targetId || ""));
+      break;
     case "task_update":
       room.taskUpdate(playerId, String(data?.taskId || ""), data?.payload);
       break;
     case "task_confirm":
-      room.taskConfirm(playerId, String(data?.taskId || ""), data?.payload);
+      room.taskConfirm(
+        playerId,
+        String(data?.taskId || ""),
+        data?.payload !== undefined ? data.payload : data?.value,
+      );
       break;
     case "hold":
       room.hold(playerId, String(data?.taskId || ""), Boolean(data?.holding));

@@ -435,18 +435,10 @@ function oxygenLeak(rng: Rng, sim: Sim, scale: number, id: string): PuzzleInstan
     severity: "urgent",
     assignedSystems: ["life_support"],
     controlSystems: ["life_support"],
-    operatorInfo: [
-      `Crew on board: ${crew}`,
-      `Scrubber recycle: ${recycle} L/min returned`,
-      `Current production: ${current} L/min`,
-    ],
+    operatorInfo: [`CREW ${crew}`, `RECYCLE ${recycle}`],
     infoBySystem: {
-      thermal: [`Metabolic rate: ${rate} L/min per person`],
-      exterior: [`Hull leak measured: ${leak} L/min`],
-      power: [
-        `Each extra L/min of O₂ generation costs ${kw} kW`,
-        `Current generation: ${sim.generation.toFixed(0)} kW — do not overshoot.`,
-      ],
+      thermal: [`RATE ${rate}`],
+      exterior: [`LEAK ${leak}`],
     },
     requiredRoom: "life_support",
     requiresPresence: true,
@@ -459,7 +451,7 @@ function oxygenLeak(rng: Rng, sim: Sim, scale: number, id: string): PuzzleInstan
       min: 10,
       max: 40,
       step: 1,
-      value: current,
+      value: 10,
     },
     solution: required,
     optimal: required,
@@ -489,16 +481,13 @@ function powerSplit(rng: Rng, scale: number, id: string): PuzzleInstance {
     severity: "urgent",
     assignedSystems: ["power"],
     controlSystems: ["power"],
-    operatorInfo: [
-      `Available bus: ${available} kW`,
-      "Each slider = that station's critical kW. Sum must equal the bus.",
-    ],
+    operatorInfo: [`BUS ${available}`],
     infoBySystem: {
-      life_support: [`Life Support critical requirement: ${ls} kW`],
-      thermal: [`Thermal critical requirement: ${th} kW`],
-      comms: [`Communications critical requirement: ${com} kW`],
-      medical: [`Medical critical requirement: ${med} kW`],
-      exterior: [`Exterior / arrays critical requirement: ${ext} kW`],
+      life_support: [`LIFE SUPPORT ${ls}`],
+      thermal: [`THERMAL ${th}`],
+      comms: [`COMMS ${com}`],
+      medical: [`MEDICAL ${med}`],
+      exterior: [`EXTERIOR ${ext}`],
     },
     requiredRoom: "power",
     requiresPresence: true,
@@ -546,14 +535,10 @@ function heater(rng: Rng, sim: Sim, scale: number, id: string): PuzzleInstance {
     severity: "urgent",
     assignedSystems: ["thermal"],
     controlSystems: ["thermal"],
-    operatorInfo: [
-      `Cabin now: ${current}°C`,
-      `Heater rate: +${rate}°C every ${every} seconds`,
-    ],
+    operatorInfo: [`CABIN ${current}`, `RISE +${rate} per ${every}s`],
     infoBySystem: {
-      life_support: [`Crew comfort target: ${target}°C`, "Do not overshoot — metabolic O₂ demand rises with heat."],
-      exterior: [`Dust compensation: +${dust} seconds (radiators fouled)`],
-      power: ["Heater draw while active: 22 kW"],
+      life_support: [`COMFORT ${target}`],
+      exterior: [`DUST +${dust}s`],
     },
     requiredRoom: "crew",
     requiresPresence: true,
@@ -597,12 +582,10 @@ function solarAngle(rng: Rng, sim: Sim, scale: number, id: string): PuzzleInstan
     severity: "routine",
     assignedSystems: ["exterior"],
     controlSystems: ["exterior"],
-    operatorInfo: [
-      `Current park angle: ${current}°`,
-    ],
+    operatorInfo: [`PARK ${current}`],
     infoBySystem: {
-      power: [`Telemetry: optimal sun angle is ${optimal}°`],
-      comms: [`Magnetic storm bias: ${bias > 0 ? "+" : ""}${bias}°`],
+      power: [`SUN ${optimal}`],
+      comms: [`BIAS ${bias > 0 ? "+" : ""}${bias}`],
     },
     requiredRoom: "exterior",
     requiredItem: "repair_kit",
@@ -644,10 +627,10 @@ function medDose(rng: Rng, scale: number, id: string): PuzzleInstance {
     severity: "critical",
     assignedSystems: ["medical"],
     controlSystems: ["medical"],
-    operatorInfo: [`Patient mass: ${mass} kg`],
+    operatorInfo: [`MASS ${mass}`],
     infoBySystem: {
-      comms: [`MISSION CONTROL PROTOCOL: ${mgkg} mg/kg antirad-oxygenate`],
-      life_support: [`Hypoxia adjuvant: +${adjuvant} mg (can be zero)`],
+      comms: [`PROTOCOL ${mgkg}`],
+      life_support: [`ADJUVANT ${adjuvant}`],
     },
     requiredRoom: "medical",
     requiredItem: "medical_kit",
@@ -661,7 +644,7 @@ function medDose(rng: Rng, scale: number, id: string): PuzzleInstance {
       min: 40,
       max: 320,
       step: mgkg === 1.5 || mgkg === 2.5 ? 0.5 : 1,
-      value: 80,
+      value: 40,
     },
     solution: dose,
     optimal: dose,
@@ -688,10 +671,10 @@ function freqTune(rng: Rng, scale: number, id: string): PuzzleInstance {
     severity: "urgent",
     assignedSystems: ["comms"],
     controlSystems: ["comms"],
-    operatorInfo: [`Interference offset: +${offset.toFixed(1)} GHz`],
+    operatorInfo: [`OFFSET +${offset.toFixed(1)}`],
     infoBySystem: {
-      exterior: [`Beacon etched on the high-gain: ${base.toFixed(1)} GHz`],
-      power: [`Plasma shift this sol: +${shift.toFixed(1)} GHz`],
+      exterior: [`BEACON ${base.toFixed(1)}`],
+      power: [`PLASMA +${shift.toFixed(1)}`],
     },
     requiredRoom: "comms",
     requiresPresence: true,
@@ -704,7 +687,7 @@ function freqTune(rng: Rng, scale: number, id: string): PuzzleInstance {
       min: 7,
       max: 10,
       step: 0.1,
-      value: 8,
+      value: 7,
     },
     solution: target,
     optimal: target,
@@ -1090,7 +1073,7 @@ export function applyPuzzle(p: PuzzleInstance, payload: unknown, sim: Sim): Appl
           ok: true,
           optimal: true,
           wasted: false,
-          explanation: `Matched ${need} L/min. Tank holds — and you just gave those watts back to the heater.`,
+          explanation: `You set ${v} L/min. Need ${need}. Tank holds — watts go back to the heater.`,
           scoreDelta: 80,
           voice: "Oxygen matched. Heater gets the spare kilowatts.",
         };
@@ -1100,7 +1083,7 @@ export function applyPuzzle(p: PuzzleInstance, payload: unknown, sim: Sim): Appl
           ok: true,
           optimal: false,
           wasted: false,
-          explanation: `Generator at ${v}. Need ${need}. Air still falls — Power has spare watts that cannot save lungs.`,
+          explanation: `You set ${v} L/min. Need ${need}. Air still falls.`,
           scoreDelta: -90,
         };
       }
@@ -1111,7 +1094,7 @@ export function applyPuzzle(p: PuzzleInstance, payload: unknown, sim: Sim): Appl
         ok: true,
         optimal: false,
         wasted: true,
-        explanation: `Overshot to ${v} (need ${need}). You stole ${((v - need) * sim.o2KwPerLiter).toFixed(0)} kW — the heater just cut out.`,
+        explanation: `You set ${v} L/min. Need ${need}. Extra O2 cut the heater.`,
         scoreDelta: -40,
         voice: "Too much oxygen. Heater dropped.",
       };
@@ -1188,7 +1171,7 @@ export function applyPuzzle(p: PuzzleInstance, payload: unknown, sim: Sim): Appl
           ok: true,
           optimal: true,
           wasted: false,
-          explanation: `${v}s hits 20°C and cuts. Spare watts go back to the O₂ generator.`,
+          explanation: `You set ${v}s. Need ${need}s. Cabin hits comfort and the heater cuts.`,
           scoreDelta: 80,
           voice: "Heater timed. Life Support gets the bus back.",
         };
@@ -1198,7 +1181,7 @@ export function applyPuzzle(p: PuzzleInstance, payload: unknown, sim: Sim): Appl
           ok: true,
           optimal: false,
           wasted: false,
-          explanation: `${v}s is short of ${need}s. Cabin stays cold. The generator still has watts it cannot spend on heat.`,
+          explanation: `You set ${v}s. Need ${need}s. Cabin stays cold.`,
           scoreDelta: -60,
         };
       }
@@ -1208,7 +1191,7 @@ export function applyPuzzle(p: PuzzleInstance, payload: unknown, sim: Sim): Appl
         ok: true,
         optimal: false,
         wasted: true,
-        explanation: `${v}s overshoots ${need}s. Extra heat stole 2 L/min from the oxygen generator.`,
+        explanation: `You set ${v}s. Need ${need}s. Extra heat stole O2 from the generator.`,
         scoreDelta: -45,
         voice: "Heater overran. Oxygen production dipped.",
       };
@@ -1245,7 +1228,7 @@ export function applyPuzzle(p: PuzzleInstance, payload: unknown, sim: Sim): Appl
           ok: true,
           optimal: true,
           wasted: false,
-          explanation: `${v} mg matches mass × protocol (${need} mg). Patient stabilizing.`,
+          explanation: `You set ${v} mg. Need ${need} mg. Patient stabilizing.`,
           scoreDelta: 90,
         };
       }
@@ -1254,7 +1237,7 @@ export function applyPuzzle(p: PuzzleInstance, payload: unknown, sim: Sim): Appl
           ok: true,
           optimal: false,
           wasted: false,
-          explanation: `${v} mg is below the ${need} mg protocol dose. Treatment is partial — symptoms continue.`,
+          explanation: `You set ${v} mg. Need ${need} mg. Underdose — symptoms continue.`,
           scoreDelta: -70,
         };
       }
@@ -1262,7 +1245,7 @@ export function applyPuzzle(p: PuzzleInstance, payload: unknown, sim: Sim): Appl
         ok: true,
         optimal: false,
         wasted: true,
-        explanation: `${v} mg exceeds ${need} mg. Overdose: hepatic stress, health penalty incoming.`,
+        explanation: `You set ${v} mg. Need ${need} mg. Overdose.`,
         scoreDelta: -95,
       };
     }
@@ -1276,7 +1259,7 @@ export function applyPuzzle(p: PuzzleInstance, payload: unknown, sim: Sim): Appl
           ok: true,
           optimal: true,
           wasted: false,
-          explanation: `Receiver ${v.toFixed(1)} GHz = mission ${need.toFixed(1)} GHz. Uplink locked.`,
+          explanation: `You set ${v.toFixed(1)} GHz. Need ${need.toFixed(1)}. Uplink locked.`,
           scoreDelta: 80,
         };
       }
@@ -1285,7 +1268,7 @@ export function applyPuzzle(p: PuzzleInstance, payload: unknown, sim: Sim): Appl
         ok: true,
         optimal: false,
         wasted: true,
-        explanation: `${v.toFixed(1)} GHz is not mission + offset (${need.toFixed(1)} GHz). Carrier still in the noise.`,
+        explanation: `You set ${v.toFixed(1)} GHz. Need ${need.toFixed(1)}. Still noise.`,
         scoreDelta: -60,
       };
     }

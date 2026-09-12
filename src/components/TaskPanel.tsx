@@ -8,7 +8,7 @@ import { useEffect, useRef, useState } from "react";
 
 export function TaskPanel({
   task,
-  onUpdate: _onUpdate,
+  onUpdate,
   onConfirm,
   onHold,
   onWalk,
@@ -22,9 +22,9 @@ export function TaskPanel({
   compact?: boolean;
 }) {
   const secs = Math.ceil(task.timerMs / 1000);
-  const blocked = Boolean(task.waitingOn) || !task.youHaveControl;
-  const late = task.expired || secs <= 0;
   const walkLock = Boolean(task.youHaveControl && task.requiredRoom && !task.youInRoom);
+  const blocked = !task.youHaveControl || Boolean(task.waitingOn && !walkLock);
+  const late = task.expired || secs <= 0;
 
   return (
     <div
@@ -35,17 +35,13 @@ export function TaskPanel({
         task.severity === "urgent" && !task.youInRoom && "border-amber-400/40",
       )}
     >
-      <div className="font-mono text-[10px] tracking-[0.28em] text-orange-300">
-        {task.incidentTitle}
-        {task.partnerTitle ? ` · ${task.title} + ${task.partnerTitle}` : ""}
-      </div>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="font-display text-[10px] tracking-[0.35em] text-amber-300">
-            {late ? "LATE" : task.severity.toUpperCase()}
-            {task.youHaveControl ? " · YOUR DIAL" : " · SAY THIS"}
-          </div>
+          <div className="font-mono text-[10px] tracking-[0.28em] text-orange-300">{task.incidentTitle}</div>
           <h3 className="font-display text-xl text-white sm:text-2xl">{task.title}</h3>
+          <div className="font-display text-[10px] tracking-[0.35em] text-amber-300">
+            {late ? "LATE" : task.youHaveControl ? "SET THIS NUMBER" : "SAY THIS NUMBER"}
+          </div>
         </div>
         <div
           className={cn(
@@ -57,16 +53,13 @@ export function TaskPanel({
         </div>
       </div>
 
-      {task.incidentCause && (
-        <p className="text-xs text-white/75">{task.incidentCause}</p>
+      {!compact && task.sameHole && (
+        <p className="text-[11px] leading-snug text-orange-100/80">{task.sameHole}</p>
       )}
       {task.cascadePulse && (
         <p className="rounded border border-amber-400/35 bg-amber-400/10 px-2 py-1.5 text-xs text-amber-50">
           {task.cascadePulse}
         </p>
-      )}
-      {task.sameHole && !compact && (
-        <p className="text-[11px] leading-snug text-orange-100/90">{task.sameHole}</p>
       )}
 
       {task.youHaveControl && (
@@ -74,7 +67,8 @@ export function TaskPanel({
           key={task.id}
           control={task.control}
           confirmLocked={blocked}
-          lockReason={task.waitingOn || ""}
+          lockReason={walkLock ? "" : task.waitingOn || ""}
+          onUpdate={onUpdate}
           onConfirm={onConfirm}
           onHold={onHold}
         />
@@ -88,21 +82,17 @@ export function TaskPanel({
 
       {task.youHaveControl ? (
         <div>
-          <div className="font-mono text-[10px] tracking-[0.25em] text-cyan-300/70">ON YOUR BOARD</div>
-          <ul className="mt-1 space-y-1">
+          <div className="font-mono text-[10px] tracking-[0.25em] text-cyan-300/70">YOUR PIECES</div>
+          <ul className="mt-1 flex flex-wrap gap-1">
             {task.availableInfo.map((l) => (
-              <li key={l} className="rounded bg-cyan-400/10 px-2 py-1.5 font-display text-sm text-white">
+              <li key={l} className="rounded bg-cyan-400/10 px-2 py-1.5 font-display text-lg text-white">
                 {l}
               </li>
             ))}
           </ul>
-          <ul className="mt-2 space-y-0.5">
-            {task.worksheet.map((l) => (
-              <li key={l} className="font-mono text-[11px] text-cyan-100/80">
-                {l}
-              </li>
-            ))}
-          </ul>
+          {task.worksheet[0] && (
+            <p className="mt-2 font-mono text-[11px] text-cyan-100/70">{task.worksheet[0]}</p>
+          )}
         </div>
       ) : (
         <div>
@@ -111,19 +101,18 @@ export function TaskPanel({
             {task.availableInfo.map((l) => (
               <li
                 key={l}
-                className="rounded-lg border border-amber-400/40 bg-amber-400/15 px-3 py-3 font-display text-lg leading-snug text-white"
+                className="rounded-lg border border-amber-400/40 bg-amber-400/15 px-3 py-4 text-center font-display text-3xl text-white"
               >
                 {l}
               </li>
             ))}
           </ul>
-          <p className="mt-2 font-mono text-[11px] text-white/55">{task.worksheet[0]}</p>
         </div>
       )}
 
       {task.requiredItem && (
         <div className="text-xs text-amber-200/90">
-          {task.youHaveItem ? `Holding ${ITEM_LABELS[task.requiredItem]}` : `Need ${ITEM_LABELS[task.requiredItem]}`}
+          {task.youHaveItem ? `Holding ${ITEM_LABELS[task.requiredItem]}` : `Need ${ITEM_LABELS[task.requiredItem]} — grab it or trade`}
         </div>
       )}
 
@@ -140,12 +129,14 @@ function TaskControlBoard({
   control,
   confirmLocked,
   lockReason,
+  onUpdate,
   onConfirm,
   onHold,
 }: {
   control: TaskControl;
   confirmLocked: boolean;
   lockReason: string;
+  onUpdate: (payload: unknown) => void;
   onConfirm: (payload: unknown) => void;
   onHold: (holding: boolean) => void;
 }) {
@@ -161,6 +152,7 @@ function TaskControlBoard({
           value={control.value}
           confirmLocked={confirmLocked}
           lockReason={lockReason}
+          onLive={onUpdate}
           onGo={(v) => onConfirm(v)}
         />
       );
@@ -170,6 +162,7 @@ function TaskControlBoard({
           control={control}
           confirmLocked={confirmLocked}
           lockReason={lockReason}
+          onLive={onUpdate}
           onGo={(v) => onConfirm(v)}
         />
       );
@@ -232,6 +225,7 @@ function TaskControlBoard({
           confirmLocked={confirmLocked}
           lockReason={lockReason}
           confirmLabel="CONFIRM"
+          onLive={onUpdate}
           onGo={(v) => onConfirm({ value: v })}
         />
       );
@@ -246,6 +240,7 @@ function TaskControlBoard({
           value={control.value}
           confirmLocked={confirmLocked}
           lockReason={lockReason}
+          onLive={onUpdate}
           onGo={(v) => onConfirm(v)}
         />
       );
@@ -282,6 +277,7 @@ function Stepper({
   confirmLocked,
   lockReason,
   confirmLabel = "CONFIRM",
+  onLive,
   onGo,
 }: {
   label: string;
@@ -293,6 +289,7 @@ function Stepper({
   confirmLocked: boolean;
   lockReason: string;
   confirmLabel?: string;
+  onLive?: (v: number) => void;
   onGo: (v: number) => void;
 }) {
   const decimals = step < 1 ? (String(step).split(".")[1]?.length ?? 1) : 0;
@@ -309,7 +306,11 @@ function Stepper({
   const repeating = useRef(false);
 
   const bump = (d: number) => {
-    setV((cur) => clampV(cur + d));
+    setV((cur) => {
+      const next = clampV(cur + d);
+      onLive?.(next);
+      return next;
+    });
   };
 
   const stopHold = () => {
@@ -368,7 +369,11 @@ function Stepper({
             max={max}
             step={step}
             value={v}
-            onChange={(e) => setV(clampV(Number(e.target.value)))}
+            onChange={(e) => {
+              const next = clampV(Number(e.target.value));
+              setV(next);
+              onLive?.(next);
+            }}
             className="w-full bg-transparent text-center font-display text-5xl text-white tabular-nums outline-none"
           />
           <div className="font-mono text-xs tracking-widest text-cyan-300">{unit}</div>
@@ -395,7 +400,8 @@ function Stepper({
         </button>
       </div>
       <Button className="h-16 w-full text-lg" disabled={confirmLocked} onClick={() => onGo(vRef.current)}>
-        {confirmLabel}
+        {confirmLabel} {v}
+        {unit ? ` ${unit}` : ""}
       </Button>
     </div>
   );
@@ -405,15 +411,24 @@ function SliderBoard({
   control,
   confirmLocked,
   lockReason,
+  onLive,
   onGo,
 }: {
   control: Extract<TaskControl, { kind: "sliders" }>;
   confirmLocked: boolean;
   lockReason: string;
+  onLive?: (v: Record<string, number>) => void;
   onGo: (v: Record<string, number>) => void;
 }) {
   const [vals, setVals] = useState(() => Object.fromEntries(control.sliders.map((s) => [s.id, s.value])));
   const sum = control.sliders.reduce((a, s) => a + (vals[s.id] ?? s.value), 0);
+  const setOne = (id: string, n: number) => {
+    setVals((cur) => {
+      const next = { ...cur, [id]: n };
+      onLive?.(next);
+      return next;
+    });
+  };
   return (
     <div className="space-y-2">
       {confirmLocked && lockReason && <LockNote text={lockReason} />}
@@ -421,7 +436,7 @@ function SliderBoard({
         <label key={s.id} className="block">
           <div className="mb-1 flex justify-between font-mono text-xs">
             <span>{s.label}</span>
-            <span>
+            <span className="font-display text-lg text-white">
               {vals[s.id] ?? s.value} {control.unit}
             </span>
           </div>
@@ -430,20 +445,20 @@ function SliderBoard({
             min={s.min}
             max={s.max}
             value={vals[s.id] ?? s.value}
-            onChange={(e) => setVals((cur) => ({ ...cur, [s.id]: Number(e.target.value) }))}
+            onChange={(e) => setOne(s.id, Number(e.target.value))}
             className="w-full"
           />
         </label>
       ))}
       <div className={cn("font-display text-lg", sum === control.available ? "text-cyan-300" : "text-amber-300")}>
-        {control.totalLabel}: {sum} / {control.available} {control.unit}
+        {sum} / {control.available} {control.unit}
       </div>
       <Button
         disabled={confirmLocked}
         className="w-full"
         onClick={() => onGo(Object.fromEntries(control.sliders.map((s) => [s.id, vals[s.id] ?? s.value])))}
       >
-        CONFIRM ALLOCATION
+        CONFIRM {sum} {control.unit}
       </Button>
     </div>
   );

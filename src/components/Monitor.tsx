@@ -45,6 +45,14 @@ export function HabitatMonitor({
         <aside className="glass flex flex-col gap-3 overflow-y-auto rounded-xl p-3">
           <TankBar label="O₂ TANK" pct={state.habitat.oxygenPct} warn={42} crit={22} />
           <TankBar label="BATTERY" pct={state.habitat.batteryPct} warn={28} crit={12} />
+          <div className="grid grid-cols-2 gap-1">
+            <MonSys k="LIFE SUPPORT" v={state.habitat.oxygen} />
+            <MonSys k="POWER" v={state.habitat.power} />
+            <MonSys k="THERMAL" v={state.habitat.thermal} />
+            <MonSys k="COMMS" v={state.habitat.comms} />
+            <MonSys k="MEDICAL" v={state.habitat.medical} />
+            <MonSys k="EXTERIOR" v={state.habitat.exterior} />
+          </div>
           <div className="font-mono text-[10px] text-white/50">CABIN {state.habitat.tempC.toFixed(0)}°C</div>
           <div className="font-mono text-[10px] tracking-[0.3em] text-cyan-300">CREW · {state.playerCount}</div>
           <ul className="space-y-2">
@@ -98,6 +106,17 @@ function TankBar({ label, pct, warn, crit }: { label: string; pct: number; warn:
       <div className="mt-1 h-4 overflow-hidden rounded-sm bg-black/50 ring-1 ring-white/10">
         <div className="h-full" style={{ width: `${Math.max(2, Math.min(100, pct))}%`, background: color }} />
       </div>
+    </div>
+  );
+}
+
+function MonSys({ k, v }: { k: string; v: string }) {
+  const color =
+    v === "CRITICAL" ? "text-red-400" : v === "WARNING" ? "text-amber-300" : v === "OFFLINE" ? "text-white/40" : "text-cyan-300";
+  return (
+    <div className="rounded bg-black/30 px-2 py-1">
+      <div className="font-mono text-[9px] tracking-widest text-white/45">{k}</div>
+      <div className={`font-display text-sm ${color}`}>{v}</div>
     </div>
   );
 }
