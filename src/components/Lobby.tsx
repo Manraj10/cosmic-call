@@ -120,39 +120,47 @@ export function Lobby({
 
   const slots = [0, 1, 2, 3];
   return (
-    <div className="mars-horizon stars min-h-dvh overflow-y-auto px-4 py-8">
-      <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="glass rounded-2xl p-6">
+    <div className="mars-horizon stars flex min-h-dvh flex-col overflow-hidden">
+      <div className="mx-auto grid min-h-0 w-full max-w-5xl flex-1 gap-4 overflow-y-auto px-4 py-4 pb-28 lg:grid-cols-[1.1fr_0.9fr] lg:pb-8 lg:pt-8">
+        <div className="glass rounded-2xl p-4 sm:p-6">
           <div className="font-mono text-[11px] tracking-[0.4em] text-orange-300">
             {state.youAreMonitor ? "HABITAT MONITOR" : "MISSION LOBBY"}
           </div>
-          <h2 className="font-display mt-2 text-3xl">ARES HABITAT</h2>
+          <h2 className="font-display mt-2 text-2xl sm:text-3xl">ARES HABITAT</h2>
           {state.youAreMonitor ? (
             <p className="mt-2 text-sm text-cyan-100/80">
               This computer is the shared habitat screen. It is <span className="text-amber-200">not a crew seat</span>.
-              Need 2–4 astronauts on phones (or extra tabs). Then start.
+              Need 2–4 astronauts on phones. Then start.
             </p>
           ) : (
             <p className="mt-2 text-sm text-cyan-100/70">Need 2–4 astronauts. A TV/monitor host does not count as crew.</p>
           )}
-          <div className="mt-6 rounded-xl border border-cyan-400/20 bg-black/30 p-5 text-center">
+          <div className="mt-4 rounded-xl border border-cyan-400/20 bg-black/30 p-4 text-center sm:mt-6 sm:p-5">
             <div className="font-mono text-[10px] tracking-[0.4em] text-cyan-300/70">ROOM CODE</div>
-            <div className="font-display mt-2 text-5xl tracking-[0.25em] text-orange-300">{state.roomCode}</div>
-            {qr && <img src={qr} alt="Join QR" className="mx-auto mt-4 rounded-lg" width={180} height={180} />}
-            <div className="mt-2 font-mono text-[11px] text-white/40">Scan to board from a phone</div>
+            <div className="font-display mt-2 text-4xl tracking-[0.25em] text-orange-300 sm:text-5xl">{state.roomCode}</div>
+            {qr && (
+              <img
+                src={qr}
+                alt="Join QR"
+                className="mx-auto mt-3 hidden rounded-lg sm:block"
+                width={180}
+                height={180}
+              />
+            )}
+            <div className="mt-2 font-mono text-[11px] text-white/40">Phones JOIN with this code</div>
           </div>
         </div>
-        <div className="glass rounded-2xl p-6">
+        <div className="glass rounded-2xl p-4 sm:p-6">
           <div className="font-mono text-[11px] tracking-[0.4em] text-cyan-300">
             ASTRONAUTS · {state.playerCount} / 4
           </div>
-          <ul className="mt-4 space-y-3">
+          <ul className="mt-3 space-y-2 sm:mt-4 sm:space-y-3">
             {slots.map((i) => {
               const p = state.players[i];
               return (
                 <li
                   key={i}
-                  className="flex items-center gap-3 rounded-lg border border-white/10 bg-black/25 px-3 py-3"
+                  className="flex items-center gap-3 rounded-lg border border-white/10 bg-black/25 px-3 py-2 sm:py-3"
                 >
                   <span
                     className="flex h-10 w-10 items-center justify-center rounded-full font-display"
@@ -179,20 +187,32 @@ export function Lobby({
           {state.roomFull && (
             <div className="mt-4 text-center font-display tracking-[0.3em] text-orange-300">ROOM FULL</div>
           )}
-          {state.youAreHost ? (
-            <Button size="xl" className="mt-6 w-full" disabled={!state.canStart} onClick={onStart}>
-              START MISSION
-            </Button>
-          ) : (
-            <div className="mt-6 text-center text-sm text-white/60">Waiting for {state.hostName} to start.</div>
-          )}
-          {!state.canStart && (
-            <p className="mt-3 text-center text-xs text-amber-200/80">
-              Need at least two astronauts. The hosting computer does not count.
-            </p>
-          )}
+          <div className="mt-4 hidden lg:block">
+            <StartControl state={state} onStart={onStart} />
+          </div>
         </div>
+      </div>
+      <div className="sticky bottom-0 z-20 border-t border-cyan-400/20 bg-black/85 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
+        <StartControl state={state} onStart={onStart} />
       </div>
     </div>
   );
+}
+
+function StartControl({ state, onStart }: { state: ClientState; onStart: () => void }) {
+  if (state.youAreHost) {
+    return (
+      <>
+        <Button size="xl" className="w-full" disabled={!state.canStart} onClick={onStart}>
+          START MISSION
+        </Button>
+        {!state.canStart && (
+          <p className="mt-2 text-center text-xs text-amber-200/80">
+            Need at least two astronauts. The hosting computer does not count.
+          </p>
+        )}
+      </>
+    );
+  }
+  return <div className="text-center text-sm text-white/60">Waiting for {state.hostName} to start.</div>;
 }
