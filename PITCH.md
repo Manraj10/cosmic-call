@@ -20,13 +20,13 @@ Don't explain roles yet. Don't explain systems. Stop talking and demo.
 
 Get three phones on camera. **Never show four consoles at once** — it reads as noise.
 
-Show **Vega's screen** and **Chen's screen** side by side, and narrate one emergency:
+Show **Vega's screen** and **Rook's screen** side by side, and narrate one emergency:
 
 1. "The pump jams. The ship says out loud: *turn off the oxygen.*" — let the voice line play.
 2. "Everyone at this table heard that. She didn't."
 3. Point at Vega's screen: air climbing past 90, needle in the red hatching. "She thinks this is good news. More air."
-4. "I can't tell her. I can only send **one** icon, and I'm on a cooldown." — press PUMP OFF.
-5. Icon lands on Vega's glass, flashing, her phone buzzes. She kills the pump.
+4. "I can't tell her. I get **one** icon, and PUMP OFF is the only one my console has." — press it.
+5. Icon lands on Vega's glass, flashing, her phone buzzes. She kills the pump — and her acknowledge turns my line green.
 
 That's your demo. One emergency, start to finish, in about 20 seconds of real play. Then say:
 
@@ -39,6 +39,10 @@ That's your demo. One emergency, start to finish, in about 20 seconds of real pl
 > Vega has every control and one number. Rook has the power reading. Idris has the storm clock. Chen has the alarm log. **Nobody can see anyone else's screen, and the one person who can act is cut off from all of it.**
 >
 > So the failure mode isn't fumbling. It's a real communication breakdown — three people shouting the right answer at someone who physically cannot receive it.
+
+And the line that lands with judges who build things:
+
+> Every icon is locked to one person's console. Chen is the only human alive who can tell Vega which valve is bleeding. There is exactly one order that gets you through ninety seconds, and we have a harness that proves it: silence any one of the four of us and the win rate is zero. **There are no passengers in this game.**
 
 If you have 10 spare seconds, the accessibility line:
 
@@ -65,9 +69,9 @@ Ending on an invitation gets judges out of their chairs, which is worth more tha
 **Show 3 roles live, mention the 4th.** Four people crowding phones does not film.
 
 Casting:
-- **You are Chen.** You hold the alarm log and the signal pad, so you can narrate cause and effect from one screen.
+- **You are Rook.** The pump runaway is the clearest beat to narrate, and `PUMP OFF` is on your console and nobody else's.
 - **A friend is Vega**, earplugs in, visibly not reacting when the room shouts. That silence is the pitch.
-- **One judge or teammate is Idris** on the storm clock, if you want a third phone.
+- **One judge or teammate is Chen** on the alarm log, if you want a third phone — hand them the valve leak and let them discover that only they can call it.
 
 Before you present:
 - Every phone on the same hotspot, not venue Wi‑Fi.

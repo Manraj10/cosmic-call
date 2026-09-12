@@ -10,18 +10,20 @@ A 90-second, same-table party game for 4 phones. Like *Keep Talking and Nobody E
 
 Each of the four astronauts can perceive exactly one thing, and nobody else can see it:
 
-| Astronaut | Sees | Can do |
+| Astronaut | Sees | Can send |
 |---|---|---|
-| **Vega** | Cabin air % | **Every control on the ship** — but hears nothing, ever |
-| **Rook** | Reactor power % | Talk, and press the signal pad |
-| **Idris** | Dust-storm countdown | Talk, and press the signal pad |
-| **Chen** | Alarm log (what just broke) | Talk, and press the signal pad |
+| **Vega** | Cabin air % | Nothing. She has **every control on the ship** and hears nothing, ever |
+| **Rook** | Reactor power % | `PUMP OFF` · `PUMP ON` |
+| **Idris** | Dust-storm countdown | `SHIELDS` · `BRACE` |
+| **Chen** | Alarm log (what just broke) | `SEAL PORT` · `SEAL STBD` |
 
-Rook, Idris and Chen can shout across the table all they like. **Vega cannot hear any of it.** The only thing that reaches her is the shared **signal pad** — six icons, one 4-second cooldown between all three of them.
+Rook, Idris and Chen can shout across the table all they like. **Vega cannot hear any of it.** The only thing that reaches her is the **signal pad** — and every icon on it is welded to exactly one console. Chen is the only person alive who can tell Vega which valve is bleeding. Rook is the only one who can call the pump. Idris is the only one who can call the storm. All three share one 4-second cooldown, so a wasted press is wasted for everybody.
 
-So the game is: diagnose out loud, then compress the answer into one icon before the air runs out.
+So the game is: diagnose out loud, work out whose call it is, then compress it into one icon before the air runs out.
 
-Three emergencies hit in 90 seconds — a valve leak, a pump runaway, and a dust storm — and Vega can't perceive any of the three on her own. She can't even tell *which* valve is leaking. That's Chen's to know and Chen's to send.
+Three emergencies hit in 90 seconds — a valve leak, a pump runaway, and a dust storm — and Vega can't perceive any of them on her own. **There is one order that survives all three.** Any seat that goes quiet kills the hab: the harness in `scripts/playtest.ts` asserts it.
+
+Vega's only way back is one bit — an **acknowledge** button that turns the sender's line green, so she can say "I saw it" and nothing more. Everything else she wants to say, she says out loud. The block on her is one-directional.
 
 ## Run it
 
@@ -84,14 +86,22 @@ scripts/playtest.ts headless balance harness
 ## Playtest the balance
 
 ```bash
-npx tsx scripts/playtest.ts
+npm run playtest
 ```
 
-Simulates crews at different reaction speeds. It asserts the thing the design depends on: crews who relay survive, and crews who leave Vega alone always die.
+Simulates crews at different reaction speeds, then silences each crew member in turn. It asserts the two things the design depends on: a crew who relays in the right order survives, and there is no seat you can leave empty.
 
 ```
-sharp crew (1.0s lag)    won 8/8  air floor  58
-normal crew (2.0s lag)   won 8/8  air floor  53
-slow crew (3.5s lag)     won 8/8  air floor  27
-nobody signals Vega      won 0/8  air floor   0
+=== the one path ===
+all three, sharp (1.2s)        won 8/8   air floor  22
+all three, normal (2.2s)       won 8/8   air floor   2
+all three, slow (3.6s)         won 7/8   air floor   0
+
+=== every one of them is load-bearing ===
+Rook silent (no pump calls)    won 0/8   air floor   0
+Idris silent (no storm calls)  won 0/8   air floor   0
+Chen silent (no valve calls)   won 0/8   air floor   0
+nobody signals at all          won 0/8   air floor   0
 ```
+
+A slow crew losing sometimes is intentional. If you want to soften it for a demo, `MISSION_SECONDS` and the starting air in `server/game.ts` are the two dials that matter.
