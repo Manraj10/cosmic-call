@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cosmic Call · How to play</title>
+<style>
+  :root {
+    --bg: #0d0906; --panel: #17100b; --line: #3a2a1c; --ink: #f6ead8; --dim: #9b8168;
+    --air: #3ee0ff; --power: #ffb020; --storm: #ff6a22; --alarm: #5cff9d; --danger: #ff3b1f; --ok: #6de08a; --key: #ffdb86;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: radial-gradient(ellipse at 50% -10%, #3a1608 0%, var(--bg) 55%); color: var(--ink);
+    font: 16px/1.5 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; min-height: 100vh; }
+  main { max-width: 1080px; margin: 0 auto; padding: 32px 20px 64px; }
+  h1 { font-size: clamp(34px, 7vw, 64px); line-height: 1; margin: 0 0 8px; letter-spacing: 0.04em; }
+  h1 span { color: var(--storm); }
+  .lede { font-size: clamp(17px, 2.4vw, 22px); color: var(--ink); max-width: 46ch; margin: 0 0 28px; }
+  .lede b { color: var(--storm); }
+  h2 { font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim); margin: 40px 0 14px; }
+  .seats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .seat { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .seat.vega { border-color: var(--air); box-shadow: 0 0 0 1px var(--air) inset; }
+  .seat h3 { margin: 0 0 6px; font-size: 20px; letter-spacing: 0.08em; }
+  .seat .sees { color: var(--dim); font-size: 13px; margin: 0 0 8px; }
+  .seat .does { margin: 0; font-size: 14px; }
+  .tag { display: inline-block; font-size: 11px; letter-spacing: 0.12em; padding: 2px 8px; border-radius: 99px; border: 1px solid currentColor; margin-bottom: 8px; }
+  ol.steps { list-style: none; counter-reset: s; padding: 0; margin: 0; display: grid; gap: 12px; }
+  ol.steps li { counter-increment: s; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px 16px 16px 64px; position: relative; font-size: 16px; }
+  ol.steps li::before { content: counter(s); position: absolute; left: 16px; top: 14px; width: 34px; height: 34px; border-radius: 50%;
+    display: grid; place-items: center; background: var(--storm); color: #1a0b04; font-weight: 700; }
+  ol.steps li.twist::before { background: var(--danger); color: #fff; }
+  ol.steps b { color: var(--key); }
+  .stamps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .stamp { border-radius: 14px; padding: 14px 16px; border: 2px solid; background: var(--panel); }
+  .stamp strong { display: block; font-size: 20px; letter-spacing: 0.1em; }
+  .stamp.good { border-color: var(--ok); } .stamp.good strong { color: var(--ok); }
+  .stamp.bad { border-color: var(--danger); } .stamp.bad strong { color: var(--danger); }
+  .stamp.old { border-color: var(--power); } .stamp.old strong { color: var(--power); }
+  .quiz { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+  .card { background: #120c08; border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+  .card .order { font-size: 26px; font-weight: 700; letter-spacing: 0.08em; }
+  .card .from { color: var(--dim); font-size: 13px; }
+  .card .badge { align-self: flex-start; font-weight: 700; letter-spacing: 0.12em; padding: 4px 10px; border-radius: 8px; border: 2px solid; }
+  .card .ctx { font-size: 13px; color: var(--dim); min-height: 3em; }
+  .card .row { display: flex; gap: 8px; }
+  .card button { flex: 1; font: inherit; font-weight: 700; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: #22170f; color: var(--ink); cursor: pointer; }
+  .card button:hover { border-color: var(--ink); }
+  .card button:focus-visible { outline: 2px solid var(--air); outline-offset: 2px; }
+  .card .verdict { font-size: 14px; min-height: 2.8em; }
+  .card .verdict.right { color: var(--ok); } .card .verdict.wrong { color: var(--danger); }
+  .why { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+  .why div { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; font-size: 14px; }
+  .why b { display: block; color: var(--air); letter-spacing: 0.08em; margin-bottom: 4px; }
+  .tasks { display: grid; gap: 10px; }
+  .tasks > div { display: grid; grid-template-columns: 90px 1fr; column-gap: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; }
+  .tasks .when { grid-row: span 2; font-weight: 700; color: var(--storm); font-size: 18px; align-self: center; }
+  .tasks .twist .when { color: var(--danger); }
+  .tasks b { font-size: 17px; }
+  .tasks span:not(.when) { color: var(--dim); font-size: 14px; }
+  .tasks em { font-style: normal; color: var(--key); font-weight: 700; }
+  .play { display: inline-block; margin-top: 36px; background: var(--storm); color: #1a0b04; font-weight: 700; font-size: 20px;
+    letter-spacing: 0.1em; text-decoration: none; padding: 16px 28px; border-radius: 14px; }
+  .play:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+  @media (prefers-reduced-motion: no-preference) { .card { transition: border-color .2s; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>COSMIC <span>CALL</span></h1>
+  <p class="lede">Four phones. A Mars base in a dust storm. Survive <b>90 seconds</b>.<br>
+    The only player who can touch the controls <b>can't hear you</b>, and a hacker is sending her fake orders.</p>
+
+  <h2>The whole game in 3 rules</h2>
+  <ol class="steps">
+    <li><b>Crew:</b> you can see what's breaking. Say it out loud, then press your button to send Vega an order.</li>
+    <li><b>Vega:</b> you can't hear anyone. An order fills your screen. <b>Only obey it if it says SEALED.</b></li>
+    <li class="twist"><b>Everyone:</b> a hacker steals a key near the end. If your log says <b>NOT YOU</b>, yell it. Chen rotates that key.</li>
+  </ol>
+
+  <h2>What breaks, and who fixes it</h2>
+  <div class="tasks">
+    <div><span class="when">1:22</span><b>A valve leaks air</b><span>CHEN sees it → sends <em>SEAL PORT / SEAL STBD</em> → Vega seals it</span></div>
+    <div><span class="when">1:06</span><b>The pump overloads the reactor</b><span>ROOK sees it → sends <em>PUMP OFF</em> → Vega turns it off. Air too low later? <em>PUMP ON</em></span></div>
+    <div><span class="when">~0:50</span><b>A dust storm is coming</b><span>IDRIS sees it → sends <em>SHIELDS</em> → Vega raises them. 4 seconds before impact: <em>BRACE</em></span></div>
+    <div class="twist"><span class="when">0:32</span><b>The hacker steals a key</b><span>The victim sees <em>NOT YOU</em> and yells → CHEN rotates that key in the key registry</span></div>
+    <div><span class="when">all game</span><b>The hacker sends fake cards</b><span>Vega ignores anything that isn't <em>SEALED</em></span></div>
+  </div>
+
+  <h2>The four seats</h2>
+  <div class="seats">
+    <div class="seat vega">
+      <span class="tag" style="color:var(--air)">THE HANDS</span>
+      <h3>VEGA</h3>
+      <p class="sees">Sees: cabin air %. Nothing else. Can't hear the crew.</p>
+      <p class="does">Has every control. Obeys order cards, but only real ones.</p>
+    </div>
+    <div class="seat">
+      <span class="tag" style="color:var(--power)">THE EYES</span>
+      <h3>ROOK</h3>
+      <p class="sees">Sees: the reactor.</p>
+      <p class="does">Sends <b>PUMP OFF</b> / <b>PUMP ON</b> cards to Vega.</p>
+    </div>
+    <div class="seat">
+      <span class="tag" style="color:var(--storm)">THE EYES</span>
+      <h3>IDRIS</h3>
+      <p class="sees">Sees: the dust-storm clock.</p>
+      <p class="does">Sends <b>SHIELDS</b> / <b>BRACE</b> cards to Vega.</p>
+    </div>
+    <div class="seat">
+      <span class="tag" style="color:var(--alarm)">THE EYES</span>
+      <h3>CHEN</h3>
+      <p class="sees">Sees: the alarm log (what broke).</p>
+      <p class="does">Sends <b>SEAL</b> valve cards, and holds the <b>key registry</b> to rotate a stolen key.</p>
+    </div>
+  </div>
+
+  <h2>How a round goes</h2>
+  <ol class="steps">
+    <li>Things break. Each crew member sees <b>a different piece</b> of the problem, so you have to <b>talk out loud</b> to work out what's wrong.</li>
+    <li>When it's your problem, press your button. An <b>order card fills Vega's screen</b>. Vega can't hear you, so the card is the only way to tell her.</li>
+    <li>Every card carries a <b>stamp</b>. Vega checks it before she does anything: <b>SEALED</b> means do it, anything else means ignore it.</li>
+    <li class="twist">With about 30 seconds left on the clock, the hacker <b>steals one crew member's key</b>. Its fake cards now show SEALED too. The only clue is a <b>NOT YOU</b> line in the victim's own log, so they have to <b>yell it</b>.</li>
+    <li>Chen <b>rotates that seat’s key</b> in the key registry. Now the stolen key is dead.</li>
+    <li>At 90 seconds you get an <b>incident report</b>: what got through, what you caught, and how fast you killed the stolen key.</li>
+  </ol>
+
+  <h2>The stamp on every card</h2>
+  <div class="stamps">
+    <div class="stamp good"><strong>SEALED</strong>Signed by the console it names. Real. Do it.</div>
+    <div class="stamp bad"><strong>BROKEN SEAL</strong>The signature doesn't check out. The hacker wrote it. Ignore it.</div>
+    <div class="stamp old"><strong>OLD COUNTER</strong>A real card, recorded and played back again. Ignore it.</div>
+  </div>
+
+  <h2>Try it: you're Vega. Would you obey?</h2>
+  <div class="quiz" id="quiz"></div>
+
+  <h2>Why it's more than a party game</h2>
+  <div class="why">
+    <div><b>REAL CRYPTO</b>Every card is signed on the phone with HMAC-SHA256 and verified on the server. The stamp is the check.</div>
+    <div><b>REAL ATTACKS</b>Forgery, replay, a stolen credential, and revocation: the four things security teams drill.</div>
+    <div><b>REAL ASYMMETRY</b>Each phone is only ever sent its own slice of the game. Vega's phone never receives what she isn't allowed to know.</div>
+  </div>
+
+  <a class="play" href="/">PLAY NOW →</a>
+</main>
+<script>
+  const cards = [
+    { order: 'PUMP OFF', from: 'from ROOK', badge: 'SEALED', color: 'var(--ok)', ctx: 'Rook just shouted that the reactor is overloading.', obey: true,
+      why: 'Right: the stamp checks out, so Rook really sent it.' },
+    { order: 'SEAL PORT', from: 'claims to be from CHEN', badge: 'BROKEN SEAL', color: 'var(--danger)', ctx: 'Nobody said anything about the port valve.', obey: false,
+      why: 'Right: a broken seal means the hacker wrote it. Obeying would starve the air.' },
+    { order: 'SHIELDS', from: 'from IDRIS', badge: 'SEALED', color: 'var(--ok)', ctx: '0:20 left on the clock. Idris is yelling "NOT YOU! My log says I never sent that!"', obey: false,
+      why: 'Right: the key is stolen, so even SEALED can be fake now. Chen rotates IDRIS’s key.' },
+  ]
+  const quiz = document.getElementById('quiz')
+  cards.forEach((c) => {
+    const el = document.createElement('div')
+    el.className = 'card'
+    el.innerHTML = `<div class="order"></div><div class="from"></div><div class="badge"></div><div class="ctx"></div>
+      <div class="row"><button type="button" data-obey="1">DO IT</button><button type="button" data-obey="0">IGNORE</button></div>
+      <div class="verdict" aria-live="polite"></div>`
+    el.querySelector('.order').textContent = c.order
+    el.querySelector('.from').textContent = c.from
+    const b = el.querySelector('.badge'); b.textContent = c.badge; b.style.color = c.color; b.style.borderColor = c.color
+    el.querySelector('.ctx').textContent = c.ctx
+    const v = el.querySelector('.verdict')
+    el.querySelectorAll('button').forEach((btn) => btn.addEventListener('click', () => {
+      const right = (btn.dataset.obey === '1') === c.obey
+      v.className = 'verdict ' + (right ? 'right' : 'wrong')
+      v.textContent = right ? c.why : 'Not quite. ' + c.why.replace(/^Right: /, '')
+      el.style.borderColor = right ? 'var(--ok)' : 'var(--danger)'
+    }))
+    quiz.appendChild(el)
+  })
+</script>
+</body>
+</html>
