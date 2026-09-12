@@ -15,7 +15,9 @@ Mars habitat HAB-7, caught in a dust storm. Three emergencies land in ninety sec
 | **IDRIS** | Navigation | The dust-storm clock | `SHIELDS` · `BRACE` |
 | **CHEN** | Communications | The alarm log — what actually broke | `SEAL PORT` · `SEAL STBD` · the key registry |
 
-Vega holds the port valve, the starboard valve, the air pump, the dust shields and the brace. She is the only one who can move any of them. She receives no voice, no mission clock, no power reading, no storm clock and no alarm text. The server never sends her a speech event.
+Vega holds the port valve, the starboard valve, the air pump, the dust shields and the brace. She is the only one who can move any of them — and they are bolted to different ends of HAB-7, so she has to **walk**. Plant for valves and pump. Airlock for shields. Comms for the key registry. Controls are dead while she is in the corridor.
+
+She receives no voice, no mission clock, no power reading, no storm clock and no alarm text. The server never sends her a speech event.
 
 Her one inbound channel is an order card that slams her whole phone screen. Her one outbound channel is a single bit: an acknowledge that turns the sender's line green.
 
@@ -51,9 +53,9 @@ There is an adversary on the comms bus. It attacks in the order a real incident 
 
 **3. Key theft, t=58s.** GHOST steals one crew seat's signing key. Never Chen's — somebody has to be able to fix this. From that point its forgeries from that seat verify, and Vega's glass calls them `SEALED`. She cannot tell. Nothing on her screen can tell her.
 
-The only evidence anywhere in the game is one line in the victim's own signing log: an order signed under their key that they did not press. They cannot send that fact to Vega, because she cannot receive. They have to say it out loud, to whoever is sitting at comms. Chen then rotates that seat's key from the key registry, which throws GHOST off the bus.
+The only evidence anywhere in the game is one line in the victim's own signing log: an order signed under their key that they did not press. They cannot send that fact to Vega, because she cannot receive. They have to say it out loud, to whoever is sitting at comms. Chen then sends a **ROTATE** card. Vega has to pick up the hardware key from the Spine, run it to the Comms Bay, and rotate that seat at the registry. A compromised bus cannot fix itself.
 
-Rotating a seat that was actually clean voids that console's in-flight tag and costs the table a call. So revocation is not a button you mash. It is a call you make on somebody's word.
+Rotating a seat that was actually clean voids that console's in-flight tag and costs the table a call. So revocation is not a button you mash. It is a call you make on somebody's word — and a run across the hab.
 
 ## The incident report
 

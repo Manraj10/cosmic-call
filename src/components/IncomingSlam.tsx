@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { signalArt, signalLabel } from '@shared/content'
+import { signalArt, signalLabel, signalSendsTo } from '@shared/content'
+import { MODULE_SHORT, moduleFor } from '@shared/habitat'
 import type { ClientView, SignalId } from '@shared/types'
 import { buzz } from '../haptics'
 import { sendAction } from '../net'
@@ -13,6 +14,7 @@ import { SealBadge } from './Seal'
  * Since GHOST got on the bus, the picture is no longer enough. The seal is the
  * part she has to read, so an unsigned card gets a different colour, a
  * different buzz, and a confirm step her thumb cannot skip by muscle memory.
+ * Destination text is why a forged order now costs her legs.
  */
 export function IncomingSlam({ view }: { view: ClientView }) {
   const fresh = view.signals.filter((s) => s.fresh)
@@ -22,8 +24,6 @@ export function IncomingSlam({ view }: { view: ClientView }) {
   useEffect(() => {
     if (latest && lastId.current !== latest.id) {
       lastId.current = latest.id
-      // Two distinguishable patterns. A forged order should not feel like a real
-      // one in her hand, even before she looks down.
       buzz(latest.seal === 'sealed' ? [90, 60, 90, 60, 220] : [40, 40, 40, 40, 40, 40, 40])
     }
   }, [latest])
@@ -32,6 +32,8 @@ export function IncomingSlam({ view }: { view: ClientView }) {
 
   const dir = side(latest.signal)
   const bad = latest.seal !== 'sealed'
+  const art = signalArt(latest.signal)
+  const dest = moduleFor(signalSendsTo(latest.signal))
 
   return (
     <div
@@ -41,10 +43,15 @@ export function IncomingSlam({ view }: { view: ClientView }) {
       aria-label={`${signalLabel(latest.signal)} — ${latest.seal}`}
       onClick={() => void sendAction({ type: 'clear-signals' })}
     >
-      <img className="slam-plate" src={signalArt(latest.signal)} alt="" />
+      {art ? (
+        <img className="slam-plate" src={art} alt="" />
+      ) : (
+        <div className="slam-type">{signalLabel(latest.signal)}</div>
+      )}
       {dir ? <div className={`slam-dir ${dir.side}`}>{dir.mark}</div> : null}
       <div className="slam-caption">
         <div className="what">{signalLabel(latest.signal)}</div>
+        {dest ? <div className="slam-go">RUN TO {MODULE_SHORT[dest]}</div> : null}
         <SealBadge seal={latest.seal} tag={latest.tag} seq={latest.seq} />
         {fresh.length > 1 ? <div className="tag">+{fresh.length - 1} more incoming</div> : null}
         <button

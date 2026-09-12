@@ -129,6 +129,11 @@ function Incident({
           }
         />
         <Row k="clean keys rotated on a guess" v={r.falseRevokes} />
+        <Row
+          k="seconds wasted on forged walks"
+          v={r.wastedWalkSeconds}
+          tone={r.wastedWalkSeconds === 0 ? 'good' : 'bad'}
+        />
       </div>
       {radio ? (
         <div className="incident-radio">

@@ -92,7 +92,7 @@ if (v.alarms.length) problems.push('Vega can read the alarm log')
 // She holds every control and no key. If she could sign, she could verify for
 // herself, and the crew would stop being the thing that vouches for an order.
 if (v.seal !== null) problems.push('Vega was issued a signing key')
-if (v.canRevoke !== null) problems.push('Vega can rotate keys, which belongs to comms')
+if (v.hab == null) problems.push('Vega has no body on the hab map')
 if (v.air == null) problems.push('Vega cannot see the air, which is the one thing she needs')
 if (v.order && /port|starboard|storm|t-\d|power \d/i.test(v.order.text)) {
   problems.push(`Vega's order leaked someone else's fact: "${v.order.text}"`)
@@ -108,7 +108,9 @@ if (rook.stormActive !== null) problems.push('Rook can see that the front landed
 if (rook.alarms.length) problems.push('Rook can read the log, which is Chen only')
 if (rook.braced !== null) problems.push('Rook can see whether she is holding on')
 if (rook.seal == null) problems.push('Rook holds no key, so he cannot send anything')
-if (rook.canRevoke !== null) problems.push('Rook can rotate keys, which belongs to comms')
+if (!(await hab.applyAction('engineer', { type: 'revoke', seat: 'pilot' }))) {
+  problems.push('Rook was allowed to rotate a key from his console')
+}
 
 const idris = view('pilot')
 if (idris.stormEta == null && idris.stormActive !== true) {
@@ -119,9 +121,11 @@ if (idris.draw !== null) problems.push('Idris can see the draw, which is Rook on
 if (idris.air !== null) problems.push('Idris can see the air')
 if (idris.alarms.length) problems.push('Idris can read the log')
 if (idris.braced !== null) problems.push('Idris can see whether she is holding on')
-if (idris.canRevoke !== null) problems.push('Idris can rotate keys, which belongs to comms')
 if (idris.seal && rook.seal && idris.seal.key === rook.seal.key) {
   problems.push('two consoles were issued the same key, so neither vouches for anything')
+}
+if (!(await hab.applyAction('pilot', { type: 'revoke', seat: 'engineer' }))) {
+  problems.push('Idris was allowed to rotate a key from his console')
 }
 
 const chen = view('sparks')
@@ -132,7 +136,7 @@ if (chen.draw !== null) problems.push('Chen can see the draw')
 if (chen.stormEta !== null) problems.push('Chen can see the storm clock')
 if (chen.stormActive !== null) problems.push('Chen can see that the front landed')
 if (chen.braced !== null) problems.push('Chen can see whether she is holding on')
-if (!chen.canRevoke?.length) problems.push('Chen cannot rotate a key, so a theft is unfixable')
+if (!chen.seal) problems.push('Chen holds no key, so she cannot send a rotate card')
 if (chen.alarms.some((line) => /FRONT|RUNAWAY|SIGNAL|ACK|INBOUND|IMPACT|BRACE/i.test(line))) {
   problems.push(`Chen's log is saying someone else's job: ${chen.alarms.join(' / ')}`)
 }
@@ -179,15 +183,20 @@ for (const [signal, owner] of Object.entries(SIGNAL_OWNER) as [SignalId, (typeof
   }
 }
 
-// Only comms may rotate a key, whoever asks.
+// Rotation is physical: only Vega at the registry with the token. Crew send
+// rotate cards; they do not press a registry button.
 for (const other of CREW_IDS) {
-  if (other === 'sparks') continue
   if (!(await hab.applyAction(other, { type: 'revoke', seat: 'engineer' }))) {
-    problems.push(`${other} was allowed to rotate a key`)
+    problems.push(`${other} was allowed to rotate a key from their console`)
   }
 }
+// Wrong module / no token — refuse.
 if (!(await hab.applyAction('vega', { type: 'revoke', seat: 'engineer' }))) {
-  problems.push('Vega was allowed to rotate a key')
+  problems.push('Vega rotated a key without the token at Comms')
+}
+// Valves refuse outside the plant.
+if (!(await hab.applyAction('vega', { type: 'valve', valve: 'port', sealed: true }))) {
+  problems.push('Vega sealed a valve from outside the Air Plant')
 }
 
 // Same second, opposite orders. If these two ever agree the fight is dead.

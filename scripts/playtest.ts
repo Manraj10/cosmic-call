@@ -10,7 +10,9 @@
  * Vega only ever acts on what her glass shows: the air number, and whatever
  * signal arrived. She never reads which valve is leaking, because she cannot.
  */
-import { MISSION_SECONDS, SIGNAL_OWNER } from '../shared/content.ts'
+import { MISSION_SECONDS, REVOKE_TARGET, SIGNAL_OWNER, signalSendsTo } from '../shared/content.ts'
+import { moduleFor } from '../shared/habitat.ts'
+import type { ModuleId } from '../shared/habitat.ts'
 import { sealOrder } from '../shared/seal.ts'
 import { CREW_IDS, VALVES } from '../shared/types.ts'
 import { Hab } from '../server/game.ts'
@@ -120,17 +122,26 @@ interface Sim {
  * `obeyedPumpAt` keeps her from undoing an order she just followed — a real
  * player trusts a signal for a few seconds before overriding it.
  */
+async function stepToward(hab: Hab, dest: ModuleId): Promise<boolean> {
+  const habv = hab.viewFor('vega')?.hab
+  if (!habv) return false
+  if (habv.walkingTo) return false
+  if (habv.at === dest) return true
+  const next: ModuleId = habv.at === 'spine' || dest === 'spine' ? dest : 'spine'
+  await hab.applyAction('vega', { type: 'walk', to: next })
+  return false
+}
+
 async function vegaSelfDrive(hab: Hab, inner: Internals, obeyedPumpAt: number | null) {
   const air = inner.air
   const trusting = obeyedPumpAt != null && inner.elapsed - obeyedPumpAt < 10
+  if (!(await stepToward(hab, 'plant'))) return
   if (air > 96 && inner.pumpOn) await hab.applyAction('vega', { type: 'pump', on: false })
   else if (air < 58 && !inner.pumpOn && !trusting)
     await hab.applyAction('vega', { type: 'pump', on: true })
-  // Air bleeding with the pump already running means a leak, but not which one.
-  // Guessing is all she has, so let her guess — and pay for a wrong guess.
   if (air < 40) {
     const open = VALVES.filter((v) => inner.valves[v] === 'open')
-    if (open.length > 1) await hab.applyAction('vega', { type: 'valve', valve: open[0], sealed: true })
+    if (open.length > 1) await hab.applyAction('vega', { type: 'valve', valve: open[0]!, sealed: true })
   }
 }
 
@@ -157,7 +168,8 @@ async function run(sim: Sim, seed: number) {
       if (sim.missing.includes(seat)) continue
       const seal = (hab.viewFor(seat) as ClientView).seal
       if (seal?.log.some((e) => !e.mine)) {
-        await act('sparks', { type: 'revoke', seat })
+        const card = seat === 'engineer' ? 'revoke-power' : seat === 'pilot' ? 'revoke-nav' : null
+        if (card && !sim.missing.includes('sparks')) await sign('sparks', card)
         return
       }
     }
@@ -210,30 +222,50 @@ async function run(sim: Sim, seed: number) {
       vegaSawAt = t
     }
     if (vegaTodo && vegaSawAt != null && t - vegaSawAt >= sim.vegaLag) {
-      switch (vegaTodo) {
-        case 'pump-off':
-          await act('vega', { type: 'pump', on: false })
-          obeyedPumpAt = t
-          break
-        case 'pump-on':
-          await act('vega', { type: 'pump', on: true })
-          obeyedPumpAt = t
-          break
-        case 'seal-port':
-          await act('vega', { type: 'valve', valve: 'port', sealed: true })
-          break
-        case 'seal-starboard':
-          await act('vega', { type: 'valve', valve: 'starboard', sealed: true })
-          break
-        case 'shields-on':
-          await act('vega', { type: 'shields', on: true })
-          break
-        case 'brace':
-          await act('vega', { type: 'brace' })
-          break
+      const dest = moduleFor(signalSendsTo(vegaTodo))
+      const habv = view.hab
+      if (habv?.walkingTo) {
+        // still in the corridor
+      } else if (vegaTodo === 'revoke-power' || vegaTodo === 'revoke-nav') {
+        const target = REVOKE_TARGET[vegaTodo]
+        if (!habv?.holdingToken) {
+          if (habv?.tokenAt && habv.at !== habv.tokenAt) await stepToward(hab, habv.tokenAt)
+          else if (habv?.tokenAt === habv.at) await act('vega', { type: 'token', take: true })
+        } else if (habv.at !== 'comms') {
+          await stepToward(hab, 'comms')
+        } else if (target) {
+          await act('vega', { type: 'revoke', seat: target })
+          await act('vega', { type: 'clear-signals' })
+          vegaTodo = null
+        }
+      } else if (dest && !(await stepToward(hab, dest))) {
+        // walking
+      } else {
+        switch (vegaTodo) {
+          case 'pump-off':
+            await act('vega', { type: 'pump', on: false })
+            obeyedPumpAt = t
+            break
+          case 'pump-on':
+            await act('vega', { type: 'pump', on: true })
+            obeyedPumpAt = t
+            break
+          case 'seal-port':
+            await act('vega', { type: 'valve', valve: 'port', sealed: true })
+            break
+          case 'seal-starboard':
+            await act('vega', { type: 'valve', valve: 'starboard', sealed: true })
+            break
+          case 'shields-on':
+            await act('vega', { type: 'shields', on: true })
+            break
+          case 'brace':
+            await act('vega', { type: 'brace' })
+            break
+        }
+        await act('vega', { type: 'clear-signals' })
+        vegaTodo = null
       }
-      await act('vega', { type: 'clear-signals' })
-      vegaTodo = null
     }
 
     if (sim.vegaSolo) await vegaSelfDrive(hab, inner, obeyedPumpAt)

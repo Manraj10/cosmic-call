@@ -1,3 +1,4 @@
+import { REVOKE_CARD } from '../shared/content.ts'
 import { mintKey, sealOrder, shortTag, tagsMatch } from '../shared/seal.ts'
 import type { SealState } from '../shared/seal.ts'
 import { CREW_IDS, VALVES } from '../shared/types.ts'
@@ -39,6 +40,11 @@ export interface IncidentReport {
   timeToRevoke: number | null
   /** Seats revoked that were never compromised. Each one costs the table a call. */
   falseRevokes: number
+  /**
+   * Seconds the operator spent walking somewhere a forged order sent her. The
+   * cost of an attack on a body rather than on attention.
+   */
+  wastedWalkSeconds: number
   grade: string
 }
 
@@ -213,6 +219,13 @@ export class Bus {
   }): { seat: CrewId; signal: SignalId } {
     const ok = (s: SignalId) => !state.correct.includes(s)
 
+    // The cruellest card on the board. A forged rotation does not just waste a
+    // press — it walks the only pair of hands on the ship to the far end of it
+    // carrying the one object anybody needs, and rotates a key that was fine.
+    // Aimed at a seat GHOST is NOT sitting on, so the real key stays live.
+    const decoy = CREW_IDS.find((c) => c !== this.stolenFrom && ok(REVOKE_CARD[c]))
+    if (decoy && this.stolenFrom) return { seat: 'sparks', signal: REVOKE_CARD[decoy] }
+
     // A pump running inside the front feeds the cabin dust, so keeping it lit
     // is the cruellest thing GHOST can ask for.
     if (state.stormActive && !state.pumpOn && ok('pump-on')) {
@@ -239,13 +252,27 @@ export class Bus {
     return { seat: 'pilot', signal: 'brace' }
   }
 
-  /** Which seat GHOST goes after. Never comms — they hold the revoke switch. */
-  pickVictim(rng: () => number): CrewId {
-    const targets: CrewId[] = ['engineer', 'pilot']
-    return targets[Math.floor(rng() * targets.length)]!
+  /**
+   * Which seat GHOST goes after.
+   *
+   * It has to be a seat somebody is actually sitting in: the victim's own
+   * signing log is the only evidence the theft ever happened, so stealing from
+   * an empty chair would make the attack unwinnable rather than hard. On a
+   * short crew that can mean comms, which is fine — the operator performs the
+   * rotation, not the crew, so a seat can always ask for its own key back.
+   */
+  pickVictim(rng: () => number, seated: CrewId[] = ['engineer', 'pilot']): CrewId {
+    const manned = seated.filter((c) => CREW_IDS.includes(c))
+    const preferred = manned.filter((c) => c !== 'sparks')
+    const pool = preferred.length ? preferred : manned.length ? manned : ['engineer' as CrewId]
+    return pool[Math.floor(rng() * pool.length)]!
   }
 
-  report(): IncidentReport {
+  /**
+   * `wastedWalkSeconds` is measured by the simulation, not here — the bus knows
+   * what it forged, the hab knows where that sent her.
+   */
+  report(wastedWalkSeconds = 0): IncidentReport {
     const timeToRevoke =
       this.stolenAt != null && this.revokedAt != null
         ? Math.round((this.revokedAt - this.stolenAt) * 10) / 10
@@ -258,6 +285,7 @@ export class Bus {
       stolenFrom: this.stolenSeat,
       timeToRevoke,
       falseRevokes: this.falseRevokes,
+      wastedWalkSeconds: Math.round(wastedWalkSeconds * 10) / 10,
       grade: grade(this.obeyedUnsealed, this.falseRevokes, timeToRevoke),
     }
   }

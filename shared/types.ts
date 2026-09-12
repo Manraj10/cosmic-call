@@ -33,6 +33,7 @@ export type SignalId =
   /** Comms only: send the operator to the registry to rotate a seat's key. */
   | 'revoke-power'
   | 'revoke-nav'
+  | 'revoke-comms'
 
 export type Phase = 'lobby' | 'play' | 'end'
 export type Outcome = 'won' | 'lost'

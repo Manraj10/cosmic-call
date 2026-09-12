@@ -1,6 +1,5 @@
 import { CREW_META } from '@shared/content'
-import type { ClientView, CrewId, SealState } from '@shared/types'
-import { revokeKey } from '../net'
+import type { ClientView, SealState } from '@shared/types'
 
 const WORD: Record<SealState, string> = {
   sealed: 'SEALED',
@@ -58,7 +57,8 @@ export function KeyLog({ view }: { view: ClientView }) {
       </div>
       {stolen ? (
         <div className="keyalarm">
-          SOMETHING IS SIGNING AS YOU. SAY IT OUT LOUD — COMMS HAS TO ROTATE YOUR KEY.
+          SOMETHING IS SIGNING AS YOU. SAY IT OUT LOUD — CHEN MUST SEND A ROTATE CARD. SHE HAS TO
+          CARRY THE HARDWARE KEY TO COMMS.
         </div>
       ) : null}
       <div className="keyrows">
@@ -81,43 +81,16 @@ export function KeyLog({ view }: { view: ClientView }) {
   )
 }
 
-/**
- * Comms owns the key registry, so comms owns revocation. Rotating the right
- * seat throws GHOST off the bus; rotating a clean one voids that console's
- * in-flight tag and costs the table a call, which is what stops this from
- * being a button you just mash.
- */
-export function RevokePanel({ view }: { view: ClientView }) {
-  const seats = view.canRevoke
-  if (!seats) return null
-  const wait = view.revokeCooldownMs ?? 0
-  const locked = wait > 0
-
+/** Chen sends rotate cards; Vega walks the hardware key. This is just the reminder. */
+export function RevokePanel(_props: { view: ClientView }) {
   return (
     <div className="revoke">
       <div className="tag" style={{ textAlign: 'center' }}>
-        {locked
-          ? `registry writing — ${(wait / 1000).toFixed(1)}s`
-          : 'key registry — rotate the seat they are signing as'}
+        you do not rotate from here — send ROTATE ROOK / ROTATE IDRIS so she runs the token to Comms
       </div>
-      <div className="revoke-row">
-        {seats.map((s) => (
-          <button
-            key={s}
-            className="rev"
-            disabled={locked}
-            onClick={() => void revokeKey(s).catch(() => {})}
-            style={{ '--accent': accent(s) } as React.CSSProperties}
-          >
-            <span className="rname">{CREW_META[s].callsign}</span>
-            <span className="rwhat">rotate key</span>
-          </button>
-        ))}
+      <div className="tag" style={{ textAlign: 'center', opacity: 0.7 }}>
+        {CREW_META.sparks.callsign} holds the only cards that open the registry
       </div>
     </div>
   )
-}
-
-function accent(s: CrewId): string {
-  return CREW_META[s].accent
 }

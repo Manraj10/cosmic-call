@@ -1,16 +1,27 @@
 import {
   BRACE_WINDOW_SECONDS,
   MISSION_SECONDS,
+  REVOKE_TARGET,
   SIGNAL_COOLDOWN_MS,
   SIGNAL_OWNER,
   STORM_DURATION_SECONDS,
+  signalSendsTo,
 } from '../shared/content.ts'
+import {
+  MODULE_SHORT,
+  TOKEN_HOME,
+  moduleFor,
+  neighbours,
+  walkSeconds,
+  type ModuleId,
+} from '../shared/habitat.ts'
 import { CREW_IDS, VALVES } from '../shared/types.ts'
 import type {
   AirBand,
   ClientAction,
   ClientView,
   CrewId,
+  HabView,
   IncidentReport,
   LobbyPlayer,
   Outcome,
@@ -81,9 +92,6 @@ type ScriptEvent = {
    * would make the honest operator the one who loses.
    */
 const OBEY_WINDOW_SECONDS = 3
-/** A revocation costs the table a call, so it runs on its own short lockout. */
-const REVOKE_COOLDOWN_MS = 5000
-
 export interface SpeakPacket {
   text: string
   voice: 'astronaut' | 'system'
@@ -156,7 +164,6 @@ export class Hab {
 
   /** Key registry, replay window and GHOST itself. Rebuilt every round. */
   private bus = new Bus('lobby')
-  private lastRevokeAt = -99
   private incident: IncidentReport | null = null
   /** What the room's big screen is allowed to say about the bus. */
   private busThreat: string | null = null
@@ -166,6 +173,16 @@ export class Hab {
    * the only thing in the round that is genuinely her fault.
    */
   private unsealedAsk: { signal: SignalId; at: number }[] = []
+
+  /** Operator body. She is the only one who moves. */
+  private at: ModuleId = 'spine'
+  private walkingTo: ModuleId | null = null
+  private arriveAt = 0
+  private holdingToken = false
+  private tokenAt: ModuleId | null = TOKEN_HOME
+  private wastedWalk = 0
+  /** Destination a forged card was trying to send her to, if any. */
+  private forgeTrap: ModuleId | null = null
 
   constructor(code: string, host: PlayerRec, seed = Date.now()) {
     this.code = code
@@ -249,10 +266,16 @@ export class Hab {
   private begin() {
     this.rng = mulberry32(this.seed)
     this.bus = new Bus(`${this.code}-${this.seed}`)
-    this.lastRevokeAt = -99
     this.incident = null
     this.busThreat = null
     this.unsealedAsk = []
+    this.at = 'spine'
+    this.walkingTo = null
+    this.arriveAt = 0
+    this.holdingToken = false
+    this.tokenAt = TOKEN_HOME
+    this.wastedWalk = 0
+    this.forgeTrap = null
     this.script = this.buildScript()
     this.phase = 'play'
     this.elapsed = 0
@@ -261,9 +284,14 @@ export class Hab {
     this.power = 70
     this.seams = 0
     this.seamBlown = false
-    this.alarms = ['HAB-7 IN THE DUST CORRIDOR', 'PLANT IS LIVE', 'BUS KEYS ISSUED — 3 CONSOLES']
+    this.alarms = [
+      'HAB-7 IN THE DUST CORRIDOR',
+      'PLANT IS LIVE',
+      'BUS KEYS ISSUED — 3 CONSOLES',
+      'HARDWARE TOKEN ON THE SPINE',
+    ]
     this.speak(
-      'Ninety seconds. Talk to each other. Sign every order before you send it.',
+      'Ninety seconds. Talk to each other. Sign every order. She has to walk to every console.',
       'astronaut',
     )
     this.listener?.onView()
@@ -303,6 +331,7 @@ export class Hab {
   private tick(dt: number) {
     if (this.phase !== 'play') return
     this.elapsed += dt
+    this.advanceWalk()
     while (this.scriptI < this.script.length && this.elapsed >= this.script[this.scriptI]!.t) {
       this.fire(this.script[this.scriptI]!)
       this.scriptI += 1
@@ -508,17 +537,6 @@ export class Hab {
 
   /** Empty seats get covered slowly, so two people can still play. */
   private npcs() {
-    if (!this.isSeated('vega')) {
-      for (const v of VALVES) {
-        if (this.leaks[v] && this.valves[v] !== 'sealed') this.valves[v] = 'sealed'
-      }
-      if (this.air > 90) this.pumpOn = false
-      else if (this.air < 45) this.pumpOn = true
-      if (this.stormEta != null && this.stormEta < 12) {
-        this.shieldsOn = true
-        this.bracedAt = this.elapsed
-      }
-    }
     const anyCrewSeated = CREW_IDS.some((c) => this.isSeated(c))
     if (!anyCrewSeated && this.elapsed - this.lastSignalAt > 6) {
       // The sim is inside the trust boundary — it is the hab covering its own
@@ -537,6 +555,35 @@ export class Hab {
       this.bus.revoke(this.bus.stolenFrom, this.elapsed)
       this.alarm('BUS: KEY ROTATED')
     }
+    // Empty Vega seat: teleport to the right module and act. No walking sim —
+    // the table is short a body, not a comedy of doors.
+    if (!this.isSeated('vega')) {
+      for (const v of VALVES) {
+        if (this.leaks[v] && this.valves[v] !== 'sealed') {
+          this.at = 'plant'
+          this.valves[v] = 'sealed'
+        }
+      }
+      if (this.air > 90) {
+        this.at = 'plant'
+        this.pumpOn = false
+      } else if (this.air < 45) {
+        this.at = 'plant'
+        this.pumpOn = true
+      }
+      if (this.stormEta != null && this.stormEta < 12) {
+        this.at = 'lock'
+        this.shieldsOn = true
+        this.bracedAt = this.elapsed
+      }
+      if (this.bus.stolenFrom && !this.holdingToken && this.tokenAt === 'spine') {
+        this.holdingToken = true
+        this.tokenAt = null
+        this.at = 'comms'
+        this.bus.revoke(this.bus.stolenFrom, this.elapsed)
+        this.alarm('BUS: KEY ROTATED')
+      }
+    }
   }
 
   /**
@@ -552,7 +599,6 @@ export class Hab {
 
     if (action.type === 'signal') {
       if (role === 'vega') return 'You are the one being signalled'
-      // Welded to one console, so all three of them are load-bearing.
       const owner = SIGNAL_OWNER[action.signal]
       if (owner !== role) return 'Not your call to make'
       const remain = SIGNAL_COOLDOWN_MS - (this.elapsed - this.lastSignalAt) * 1000
@@ -566,8 +612,6 @@ export class Hab {
         action.tag,
         this.elapsed,
       )
-      // A crew phone whose own tag will not verify is holding a rotated key.
-      // Refusing it here rather than forwarding it keeps the glass honest.
       if (seal !== 'sealed') return 'Your key was rotated — the pad re-keyed, send it again'
 
       this.lastSignalAt = this.elapsed
@@ -577,13 +621,42 @@ export class Hab {
       return null
     }
 
+    if (role !== 'vega') return 'Only Vega can touch the ship'
+    if (this.walkingTo) return 'Still moving — controls are dead in the corridor'
+
+    if (action.type === 'walk') {
+      if (!neighbours(this.at).includes(action.to) && action.to !== this.at) {
+        return 'That module is not next to you'
+      }
+      if (action.to === this.at) return null
+      const trap = this.freshForgeModule()
+      if (trap === action.to) this.forgeTrap = trap
+      else this.forgeTrap = null
+      this.walkingTo = action.to
+      this.arriveAt = this.elapsed + walkSeconds(this.at, action.to)
+      this.listener?.onView()
+      return null
+    }
+
+    if (action.type === 'token') {
+      if (action.take) {
+        if (this.holdingToken) return null
+        if (this.tokenAt !== this.at) return 'The token is not in this module'
+        this.holdingToken = true
+        this.tokenAt = null
+      } else {
+        if (!this.holdingToken) return null
+        this.holdingToken = false
+        this.tokenAt = this.at
+      }
+      this.listener?.onView()
+      return null
+    }
+
     if (action.type === 'revoke') {
-      // Comms holds the key registry. That is the whole reason GHOST never
-      // steals their key: somebody has to be able to fix this.
-      if (role !== 'sparks') return 'Comms owns the key registry'
-      const wait = REVOKE_COOLDOWN_MS - (this.elapsed - this.lastRevokeAt) * 1000
-      if (wait > 0) return 'Registry is still writing'
-      this.lastRevokeAt = this.elapsed
+      // Hardware key + registry. A compromised bus cannot rotate itself.
+      if (this.at !== 'comms') return 'Registry is in the Comms Bay — walk there'
+      if (!this.holdingToken) return 'You need the hardware token from the Spine'
       const { caught } = this.bus.revoke(action.seat, this.elapsed)
       this.alarm(
         caught
@@ -595,23 +668,29 @@ export class Hab {
         this.speak('Key rotated. They are off the bus.', 'astronaut')
       } else {
         this.gripe(action.seat, 'COMMS ROTATED YOUR KEY. YOU WERE FINE. SEND IT AGAIN.')
+        this.gripe('vega', 'THAT SEAT WAS CLEAN. YOU JUST BURNED A CALL.')
       }
+      this.obeyCheck(action)
       this.listener?.onView()
       return null
     }
 
-    if (role !== 'vega') return 'Only Vega can touch the ship'
     this.obeyCheck(action)
 
     switch (action.type) {
-      case 'valve':
+      case 'valve': {
+        const here = this.requireFixture('valves')
+        if (here) return here
         this.valves[action.valve] = action.sealed ? 'sealed' : 'open'
         if (action.sealed && VALVES.every((v) => this.valves[v] === 'sealed')) {
           this.gripe('vega', 'INTAKE IS DEAD. YOU SEALED THE FEED.')
           this.gripe('engineer', 'NO FEED. THE PUMP IS SPINNING ON NOTHING.')
         }
         break
-      case 'pump':
+      }
+      case 'pump': {
+        const here = this.requireFixture('pump')
+        if (here) return here
         this.pumpOn = action.on
         if (action.on) this.gripe('engineer', 'SHE LIT THE PUMP. THAT DRAW WAS YOURS.')
         else {
@@ -621,30 +700,66 @@ export class Hab {
           }
         }
         break
-      case 'shields':
+      }
+      case 'shields': {
+        const here = this.requireFixture('shields')
+        if (here) return here
         this.shieldsOn = action.on
         if (action.on) this.gripe('engineer', 'SHIELDS TOOK THE BUS. POWER IS THEIRS NOW.')
         else this.gripe('pilot', 'SHE DROPPED THE SHIELDS.')
         break
+      }
       case 'brace':
         this.bracedAt = this.elapsed
         break
-      case 'clear-signals':
-        // Vega's only outbound channel inside the game: one bit, "I saw it".
-        // Everything else she has to say out loud, which works fine — the
-        // block on her is one-directional.
+      case 'clear-signals': {
         const latest = this.signals.filter((s) => s.fresh).at(-1)
         if (latest) {
           this.vegaAckAt = this.elapsed
           this.lastAckedFrom = latest.from
         }
         this.signals = this.signals.map((s) => ({ ...s, fresh: false }))
-        // Binning the card ends any chance of being charged with obeying it.
         this.unsealedAsk = []
         break
+      }
     }
     this.listener?.onView()
     return null
+  }
+
+  private requireFixture(f: 'valves' | 'pump' | 'shields' | 'registry'): string | null {
+    const need = moduleFor(f)
+    if (!need || this.at === need) return null
+    return `That control is in ${MODULE_SHORT[need]} — you are in ${MODULE_SHORT[this.at]}`
+  }
+
+  private advanceWalk() {
+    if (!this.walkingTo || this.elapsed < this.arriveAt) return
+    const dest = this.walkingTo
+    if (this.forgeTrap === dest) {
+      this.wastedWalk += walkSeconds(this.at, dest)
+      this.forgeTrap = null
+    }
+    this.at = dest
+    this.walkingTo = null
+  }
+
+  private freshForgeModule(): ModuleId | null {
+    const bad = this.signals.filter((s) => s.fresh && s.seal !== 'sealed').at(-1)
+    if (!bad) return null
+    return moduleFor(signalSendsTo(bad.signal))
+  }
+
+  private habView(): HabView {
+    return {
+      at: this.at,
+      walkingTo: this.walkingTo,
+      arriveInMs: this.walkingTo
+        ? Math.max(0, Math.round((this.arriveAt - this.elapsed) * 1000))
+        : 0,
+      holdingToken: this.holdingToken,
+      tokenAt: this.tokenAt,
+    }
   }
 
   /**
@@ -675,7 +790,6 @@ export class Hab {
         seq,
       },
     ]
-    // Do not announce the call. The other two find out by asking.
   }
 
   /**
@@ -705,6 +819,12 @@ export class Hab {
         return action.on ? 'shields-on' : null
       case 'brace':
         return 'brace'
+      case 'revoke':
+        return action.seat === 'engineer'
+          ? 'revoke-power'
+          : action.seat === 'pilot'
+            ? 'revoke-nav'
+            : null
       default:
         return null
     }
@@ -766,25 +886,43 @@ export class Hab {
     const fresh = this.signals.filter((s) => s.fresh).at(-1)
 
     if (role === 'vega') {
+      if (this.walkingTo) {
+        return {
+          text: `RUNNING TO ${MODULE_SHORT[this.walkingTo]} — HANDS OFF UNTIL YOU ARRIVE`,
+          tone: 'warn',
+        }
+      }
       // Reading the badge outranks everything else on her glass.
       if (fresh && fresh.seal === 'broken') {
-        return { text: 'BROKEN SEAL. NOBODY SIGNED THAT. DO NOT DO IT.', tone: 'fight' }
+        return { text: 'BROKEN SEAL. NOBODY SIGNED THAT. DO NOT GO WHERE IT SENDS YOU.', tone: 'fight' }
       }
       if (fresh && fresh.seal === 'stale') {
         return { text: 'OLD COUNTER — THIS ORDER ALREADY RAN ONCE.', tone: 'fight' }
       }
+      if (fresh && REVOKE_TARGET[fresh.signal]) {
+        return {
+          text: `ROTATE ${REVOKE_TARGET[fresh.signal]!.toUpperCase()} — TOKEN TO COMMS`,
+          tone: 'fight',
+        }
+      }
       if (fresh?.signal === 'pump-off' && air < 92) {
         return { text: 'THEY WANT THE PUMP OFF. YOUR AIR SAYS ABSOLUTELY NOT.', tone: 'fight' }
       }
-      // During the runaway the needle climbs and looks like good news. Rook is
-      // being told to kill the same pump. That is the fight.
       if (runaway && this.pumpOn && air < 92) {
         return { text: 'AIR IS CLIMBING. THAT LOOKS FINE. KEEP THE PUMP.', tone: 'fight' }
       }
       if (air >= 92) return { text: 'TOO MUCH AIR — KILL THE PUMP OR IT SPLITS', tone: 'fight' }
       if (air < 40 && !this.pumpOn) return { text: 'ABSOLUTELY NOT. START THE PUMP.', tone: 'fight' }
       if (air < 48) return { text: 'AIR IS MINE. KEEP THE PUMP ON.', tone: 'fight' }
-      if (fresh) return { text: 'A PICTURE JUST HIT. THAT IS THE ORDER.', tone: 'warn' }
+      if (fresh) {
+        const dest = moduleFor(signalSendsTo(fresh.signal))
+        return {
+          text: dest
+            ? `A PICTURE JUST HIT. RUN TO ${MODULE_SHORT[dest]}.`
+            : 'A PICTURE JUST HIT. THAT IS THE ORDER.',
+          tone: 'warn',
+        }
+      }
       return null
     }
 
@@ -822,6 +960,13 @@ export class Hab {
     }
 
     if (role === 'sparks') {
+      if (this.bus.stolenFrom) {
+        const who = this.bus.stolenFrom === 'engineer' ? 'ROOK' : 'IDRIS'
+        return {
+          text: `${who}'S KEY IS LOOSE. SEND THE ROTATE CARD. SHE HAS TO WALK IT.`,
+          tone: 'fight',
+        }
+      }
       if (leaking.length) {
         const which = leaking[0] === 'port' ? 'PORT' : 'STARBOARD'
         return { text: `${which} IS BLEEDING. SEAL IT. DO NOT WAIT.`, tone: 'fight' }
@@ -842,7 +987,10 @@ export class Hab {
     this.phase = 'end'
     this.outcome = outcome
     this.loseReason = reason
-    this.incident = this.bus.report()
+    this.incident = {
+      ...this.bus.report(),
+      wastedWalkSeconds: Math.round(this.wastedWalk * 10) / 10,
+    }
     this.stopClock()
     this.speak(
       outcome === 'won'
@@ -910,15 +1058,15 @@ export class Hab {
       pumpOn: null,
       shieldsOn: null,
       braced: null,
+      hab: null,
       signals: [],
       power: null,
       draw: null,
       stormEta: null,
       stormActive: null,
       alarms: [],
+      covers: null,
       seal: null,
-      canRevoke: null,
-      revokeCooldownMs: null,
       signalCooldownMs: null,
       lastSignal: null,
       ackAgeMs: null,
@@ -931,9 +1079,8 @@ export class Hab {
     }
 
     if (role === 'vega') {
-      // Air is the only thing she knows. No clock, no power, no storm, no alarm
-      // text, no leak lights, and never any audio. Which valve is bleeding is
-      // Chen's to know and Chen's to send.
+      // Air is the only readout. Hab position is her body. No clock, no power,
+      // no storm, no alarm text, no leak lights, and never any audio.
       return {
         ...base,
         timeLeft: null,
@@ -944,6 +1091,7 @@ export class Hab {
         pumpOn: this.pumpOn,
         shieldsOn: this.shieldsOn,
         braced: this.elapsed - this.bracedAt <= BRACE_WINDOW_SECONDS,
+        hab: this.habView(),
         signals: this.signals,
         order: this.orderFor('vega'),
         gripe: this.gripeLine('vega'),
@@ -988,11 +1136,6 @@ export class Hab {
         ...base,
         alarms: this.alarms,
         seal: this.sealView('sparks'),
-        canRevoke: [...CREW_IDS],
-        revokeCooldownMs:
-          this.phase === 'play'
-            ? Math.max(0, REVOKE_COOLDOWN_MS - (this.elapsed - this.lastRevokeAt) * 1000)
-            : 0,
         signalCooldownMs: cooldown,
         lastSignal: this.lastSignalBy.sparks,
         ackAgeMs: ackFor('sparks'),
@@ -1014,6 +1157,13 @@ export class Hab {
           valves: { ...this.valves },
           alarms: this.alarms,
           busThreat: this.busThreat,
+          operator: this.habView(),
+          traffic: this.signals.map((s) => ({
+            signal: s.signal,
+            seal: s.seal,
+            tag: s.tag,
+            from: s.from,
+          })),
         },
       }
     }
