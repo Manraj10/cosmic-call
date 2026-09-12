@@ -44,6 +44,8 @@ export function GameHUD({
   );
   const focus = myTasks.find((t) => t.assignedToYou) || myTasks[0];
   const eta = formatEta(state.rescueEtaMs);
+  const late = state.rescueEtaMs < 120000;
+  const frantic = state.intensity > 0.62;
 
   const move = (room: RoomId) => {
     haptic(12);
@@ -51,8 +53,9 @@ export function GameHUD({
   };
 
   return (
-    <div className="mars-horizon flex h-dvh flex-col">
-      <header className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-cyan-400/15 bg-black/40 px-3 py-2">
+    <div className="mars-horizon vignette relative flex h-dvh flex-col">
+      {frantic && <div className="siren-wash pointer-events-none absolute inset-0 z-[1]" />}
+      <header className="relative z-10 grid grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-cyan-400/15 bg-black/40 px-3 py-2">
         <div className="min-w-0">
           <div className="truncate font-display text-sm text-white">{you?.name}</div>
           <div className="truncate font-mono text-[10px] tracking-widest text-cyan-300/80">
@@ -61,14 +64,20 @@ export function GameHUD({
         </div>
         <div className="text-center">
           <div className="font-mono text-[10px] tracking-[0.35em] text-orange-300">RESCUE ETA</div>
-          <div className="font-display text-3xl tabular-nums text-white sm:text-4xl">{eta}</div>
+          <div
+            className={`font-display text-3xl tabular-nums sm:text-4xl ${
+              late ? "text-red-400 crit-pulse" : frantic ? "text-amber-300" : "text-white"
+            }`}
+          >
+            {eta}
+          </div>
         </div>
         <div className="text-right font-mono text-[10px] text-white/50">
           SCORE {state.score.toLocaleString()}
         </div>
       </header>
 
-      <div className="hidden flex-1 grid-cols-[220px_minmax(0,1fr)_minmax(280px,380px)] gap-3 overflow-hidden p-3 lg:grid">
+      <div className="relative z-10 hidden flex-1 grid-cols-[220px_minmax(0,1fr)_minmax(280px,380px)] gap-3 overflow-hidden p-3 lg:grid">
         <aside className="glass flex flex-col gap-2 overflow-y-auto rounded-xl p-3">
           <Sys k="LIFE SUPPORT" v={state.habitat.oxygen} />
           <Sys k="POWER" v={state.habitat.power} />
@@ -103,7 +112,7 @@ export function GameHUD({
         </aside>
       </div>
 
-      <div className="flex flex-1 flex-col overflow-hidden lg:hidden">
+      <div className="relative z-10 flex flex-1 flex-col overflow-hidden lg:hidden">
         <div className="flex gap-1 px-2 pt-2">
           {(["map", "task", "crew"] as const).map((t) => (
             <button
@@ -228,10 +237,14 @@ function YouPanel({
 
 function Meter({ label, v, warn, invert }: { label: string; v: number; warn: number; invert?: boolean }) {
   const bad = invert ? v >= warn : v <= warn;
+  const width = Math.max(0, Math.min(100, invert ? 100 - v : v));
   return (
     <div>
       <div className="font-mono text-[9px] text-white/40">{label}</div>
       <div className={`font-display text-lg ${bad ? "text-red-400" : "text-cyan-200"}`}>{v}%</div>
+      <div className="meter-bar mt-1">
+        <span style={{ width: `${width}%`, background: bad ? "#ff3b4e" : "#7ee7ff" }} />
+      </div>
     </div>
   );
 }

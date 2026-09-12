@@ -18,8 +18,8 @@ export const ROLE_DEFS: Record<RoleId, RoleDef> = {
     primary: "LIFE SUPPORT",
     systems: ["life_support"],
     controls: ["Oxygen production", "CO₂ scrubbers", "Cabin pressure"],
-    depends: "Keep the crew breathing. Tap LIFE SUPPORT to walk there before you touch the generator.",
-    warning: "Raising O₂ is not automatically safer — extra liters steal power. Match demand + leak.",
+    depends: "Keep the crew breathing. You will have the generator dial — not the hull numbers.",
+    warning: "Raising O₂ is not automatically safer. You cannot see metabolic rate or the leak. Ask.",
   },
   power: {
     id: "power",
@@ -118,7 +118,7 @@ export function roleCard(id: RoleId, slot: number): RoleCard {
 }
 
 export function maxUrgentTasks(playerCount: number) {
-  return playerCount <= 2 ? 2 : playerCount === 3 ? 3 : 4;
+  return playerCount <= 2 ? 1 : 2;
 }
 
 export function timerScale(playerCount: number) {

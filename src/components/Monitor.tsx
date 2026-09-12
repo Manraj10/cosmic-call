@@ -68,7 +68,9 @@ export function HabitatMonitor({
           {state.tasks[0] && (
             <div className="rounded border border-amber-400/30 bg-amber-400/10 p-2 text-xs text-amber-50">
               <div className="font-display text-sm">{state.tasks[0].title}</div>
-              <p className="mt-1 text-white/80">{state.tasks[0].howTo}</p>
+              <p className="mt-1 text-white/80">
+                Operators have the dials. Everyone else has numbers. The formula has blanks — talk.
+              </p>
             </div>
           )}
           {state.youAreHost && state.phase === "lobby" && (

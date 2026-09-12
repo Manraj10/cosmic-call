@@ -194,6 +194,8 @@ export interface TaskView {
   severity: Severity;
   assignedToYou: boolean;
   youHaveControl: boolean;
+  yourJob: string;
+  askCrew: string;
   requiresPresence: boolean;
   requiredRoom?: RoomId;
   requiredItem?: ItemType;

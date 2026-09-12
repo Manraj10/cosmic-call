@@ -16,6 +16,8 @@ export interface PuzzleInstance {
   severity: Severity;
   assignedSystems: SystemId[];
   controlSystems: SystemId[];
+  /** Numbers and local gauges for the person who actually turns the dial. Never shown to anyone else. */
+  operatorInfo?: string[];
   infoBySystem: Partial<Record<SystemId, string[]>>;
   requiredRoom?: RoomId;
   requiredItem?: ItemType;
@@ -41,17 +43,17 @@ export interface ApplyResult {
 
 export const PUZZLE_HOW_TO: Record<string, string> = {
   oxygen_leak:
-    "There is one right number: crew use + leak. Set the generator there. Cranking it higher is not safer — extra O₂ steals kilowatts from heat and radios, and the tank does not need a surplus if you cover the hole.",
+    "production = (crew × metabolic rate) + hull leak − scrubber recycle. One number. Extra liters steal heat and radios.",
   power_split:
-    "Ask every station for their critical draw. Set each slider to that number. The total must equal the bus — leftover power dumps as heat, and a shorted branch brownouts.",
+    "Each slider = that station's critical kW. Sum must equal the bus. Leftover dumps as heat.",
   heater:
-    "Gap ÷ rate = how long to run. Hit the cabin target and stop. Extra seconds cook the crew and drain the battery.",
+    "seconds = ((comfort − cabin) ÷ rise per tick) × tick + dust compensation. Then cut it.",
   solar_angle:
-    "Rotate by (optimal − current). One angle. Past the sun is as bad as short of it.",
+    "rotate = (optimal sun + magnetic bias) − current park. Past the sun is as wrong as short of it.",
   med_dose:
-    "Dose = mass × protocol. Underdose fails. Overdose wrecks the liver. Only the product is legal.",
+    "dose = mass × protocol + hypoxia adjuvant. Underdose fails. Overdose hits the liver.",
   freq_tune:
-    "Lock to base frequency + interference offset. Any other number is silence.",
+    "lock = beacon base + interference offset + plasma shift. Any other number is silence.",
   reactor_reset:
     "Multiply the two codes. Both astronauts CONFIRM that same product within 3 seconds.",
   airlock_seal:
@@ -72,6 +74,270 @@ export const PUZZLE_HOW_TO: Record<string, string> = {
 
 export function howToFor(type: string, override?: string) {
   return override || PUZZLE_HOW_TO[type] || "Talk out loud. The habitat accepts one physical answer.";
+}
+
+/**
+ * Operator never sees partner numbers — even if their combined role includes
+ * that system (2-player hats). Leftover intel that only the operator's extra
+ * hats would have held is dumped onto everyone who does NOT have the dial.
+ */
+export function intelFor(
+  puz: PuzzleInstance,
+  yourSystems: SystemId[],
+  hasControl: boolean,
+  crewSystems: SystemId[][],
+): string[] {
+  const add = (into: string[], lines?: string[]) => {
+    for (const line of lines || []) {
+      if (!into.includes(line)) into.push(line);
+    }
+  };
+
+  if (hasControl) {
+    const lines: string[] = [];
+    add(lines, puz.operatorInfo);
+    if (puz.controlSystems.length > 1) {
+      for (const sys of yourSystems) add(lines, puz.infoBySystem[sys]);
+    }
+    if (!lines.length) {
+      lines.push("You have the dial. Every number in the formula lives on someone else's board.");
+    }
+    return lines;
+  }
+
+  const intelHeld = new Set<SystemId>();
+  for (const sys of crewSystems) {
+    const theyControl = puz.controlSystems.some((s) => sys.includes(s));
+    if (!theyControl) sys.forEach((s) => intelHeld.add(s));
+  }
+
+  const lines: string[] = [];
+  for (const key of Object.keys(puz.infoBySystem) as SystemId[]) {
+    const chunk = puz.infoBySystem[key];
+    if (!chunk) continue;
+    if (yourSystems.includes(key)) add(lines, chunk);
+    else if (!intelHeld.has(key) && !puz.controlSystems.includes(key)) add(lines, chunk);
+  }
+  return lines.length ? lines : ["You do not have local telemetry for this. Ask the crew who does."];
+}
+
+export function boardCopy(type: string, systems: SystemId[], hasControl: boolean) {
+  const has = (s: SystemId) => systems.includes(s);
+  switch (type) {
+    case "oxygen_leak":
+      if (has("life_support") && hasControl) {
+        return {
+          job: "YOU run the O₂ generator. Nobody else can turn this dial.",
+          ask: "You have crew count and recycle. Ask Thermal for metabolic rate, Exterior for the leak. production = (crew × rate) + leak − recycle.",
+        };
+      }
+      if (has("thermal")) {
+        return {
+          job: "You do not set oxygen. You have metabolic rate.",
+          ask: "When Life Support asks, read the L/min per person. Do not do their arithmetic for them.",
+        };
+      }
+      if (has("exterior")) {
+        return {
+          job: "You do not set oxygen. You have the hull leak.",
+          ask: "Read them the leak L/min. Do not let them 'add extra for safety.'",
+        };
+      }
+      if (has("power")) {
+        return {
+          job: "You do not set oxygen. You are the wattage check.",
+          ask: "Tell Life Support what each extra L/min costs in kW. Extra oxygen steals heat and radios.",
+        };
+      }
+      return {
+        job: "You cannot run this console.",
+        ask: "If someone asks you for rate, leak, or kW cost, point them at Thermal / hull / Power.",
+      };
+    case "power_split":
+      if (has("power") && hasControl) {
+        return {
+          job: "YOU allocate the bus. Five branches. Exact numbers — leftover dumps as heat.",
+          ask: "Ask every other station for their CRITICAL kW. Set each slider to that. Total must equal the available bus.",
+        };
+      }
+      return {
+        job: "You do not touch the reactor board. You have ONE critical draw.",
+        ask: "When Power asks, read ONLY your station's kW. Do not invent a surplus.",
+      };
+    case "heater":
+      if (has("thermal") && hasControl) {
+        return {
+          job: "YOU set heater duration.",
+          ask: "You have cabin temp and rise rate. Ask Life Support for comfort °C and Exterior for dust compensation. Then cut it.",
+        };
+      }
+      if (has("life_support")) {
+        return {
+          job: "You do not run the heater. You have the target temperature.",
+          ask: "Tell Thermal the crew comfort °C. Warmer than that is metabolic waste.",
+        };
+      }
+      if (has("exterior")) {
+        return {
+          job: "You do not run the heater. You have dust compensation.",
+          ask: "Read Thermal the extra seconds the storm adds. Zero means a clear sky.",
+        };
+      }
+      return { job: "You cannot run this console.", ask: "Point Thermal at Life Support and Exterior." };
+    case "solar_angle":
+      if (has("exterior") && hasControl) {
+        return {
+          job: "YOU slew the arrays. Walk outside with a repair kit.",
+          ask: "Ask Power for the optimal sun angle and Comms for magnetic bias. rotate = (optimal + bias) − current.",
+        };
+      }
+      if (has("power")) {
+        return {
+          job: "You do not go outside. You have the optimal sun angle.",
+          ask: "Read Exterior the degrees. Do not add a fudge factor.",
+        };
+      }
+      if (has("comms")) {
+        return {
+          job: "You do not go outside. You have the magnetic bias.",
+          ask: "Read Exterior the signed degrees. Negative means subtract.",
+        };
+      }
+      return {
+        job: "You cannot run this console.",
+        ask: "Point Exterior at Power (sun) and Comms (bias).",
+      };
+    case "med_dose":
+      if (has("medical") && hasControl) {
+        return {
+          job: "YOU push the syringe. Walk to Medical with a kit.",
+          ask: "You have patient mass. Ask Comms for mg/kg and Life Support for the hypoxia adjuvant. dose = mass × protocol + adjuvant.",
+        };
+      }
+      if (has("comms")) {
+        return {
+          job: "You do not inject anyone. You have the protocol.",
+          ask: "Read Medical the mg/kg number. Underdose fails. Overdose hits the liver.",
+        };
+      }
+      if (has("life_support")) {
+        return {
+          job: "You do not inject anyone. You have the hypoxia adjuvant.",
+          ask: "Read Medical the extra milligrams. It can be zero.",
+        };
+      }
+      return { job: "You cannot run this console.", ask: "Point Medical at Comms and Life Support." };
+    case "freq_tune":
+      if (has("comms") && hasControl) {
+        return {
+          job: "YOU tune the receiver.",
+          ask: "You have the interference offset. Ask Exterior for the beacon and Power for plasma shift. lock = base + offset + shift.",
+        };
+      }
+      if (has("exterior")) {
+        return {
+          job: "You do not touch the receiver. You have the base beacon.",
+          ask: "Read Comms the GHz etched on the high-gain.",
+        };
+      }
+      if (has("power")) {
+        return {
+          job: "You do not touch the receiver. You have the plasma shift.",
+          ask: "Read Comms the GHz the storm is shoving the carrier.",
+        };
+      }
+      return {
+        job: "You cannot run this console.",
+        ask: "Point Comms at Exterior (beacon) and Power (plasma).",
+      };
+    case "reactor_reset":
+      if (hasControl) {
+        return {
+          job: "YOU are one of two confirmations. Both must enter ALPHA × BETA within 3 seconds.",
+          ask: "You have one code. Get the other from your counterpart. Same product. Confirm together.",
+        };
+      }
+      return { job: "Stay clear of the reactor board.", ask: "The two operators need silence and a product." };
+    case "airlock_seal":
+      return {
+        job: "This hatch needs TWO people. Walk to the Airlock.",
+        ask: "Grab a crewmate. Hold SEAL together. One person cannot dog it.",
+      };
+    case "co2_route":
+      if (has("life_support") && hasControl) {
+        return {
+          job: "YOU commit the filter path. Need a repair kit in Life Support.",
+          ask: "You have one clue. Power has the other. Combine them — there is one safe order.",
+        };
+      }
+      return {
+        job: "You do not commit the path. You have half the map.",
+        ask: "Read Life Support your clue. Do not guess the rest.",
+      };
+    case "memory_code":
+      if (has("thermal") && hasControl) {
+        return {
+          job: "YOU type the auth code in Crew.",
+          ask: "It is not on this console. Ask Comms — they heard Mission Control earlier.",
+        };
+      }
+      if (has("comms")) {
+        return {
+          job: "You do not type it. You were supposed to remember the AUTH CODE.",
+          ask: "Read Thermal the 4 digits. If you weren't listening, the habitat is in trouble.",
+        };
+      }
+      return { job: "You cannot run this console.", ask: "Ask Comms for the AUTH CODE." };
+    case "valve_logic":
+      if (has("life_support") && hasControl) {
+        return {
+          job: "YOU open the valves. Need coolant in Life Support.",
+          ask: "You see colors. Power sees numbers. Map color order onto valve numbers.",
+        };
+      }
+      return {
+        job: "You do not touch the valves. You have the number map.",
+        ask: "When Life Support names a color, tell them which valve number it is.",
+      };
+    case "power_surge":
+      if (has("power") && hasControl) {
+        return {
+          job: "YOU shed branches. Keep exactly one alive. Need a fuse.",
+          ask: "Ask the crew which branch MUST stay. Trip the others.",
+        };
+      }
+      return {
+        job: "You do not shed the bus. You know if YOUR branch must live.",
+        ask: "If your card says KEEP, shout it. If it can brown out, say so.",
+      };
+    case "pressure_patch":
+      if (has("exterior") && hasControl) {
+        return {
+          job: "YOU set foam charge at the Airlock. Need an oxygen canister.",
+          ask: "You have puncture count. Ask Life Support for kPa differential. Foam = differential × holes.",
+        };
+      }
+      return {
+        job: "You do not spray foam. You have the pressure differential.",
+        ask: "Read Exterior the kPa per site.",
+      };
+    case "pattern":
+      if (hasControl) {
+        return {
+          job: "YOU type the next handshake symbol on the reactor keypad.",
+          ask: "Comms can see the stream. Get the rule from them, then enter one number.",
+        };
+      }
+      return {
+        job: "You cannot type it. You can see the stream.",
+        ask: "Tell Power the rule and the next number. They have the keypad.",
+      };
+    default:
+      return {
+        job: hasControl ? "YOU run this console." : "You cannot turn this dial.",
+        ask: "Talk. Someone else is holding a number you do not have.",
+      };
+  }
 }
 
 export function durationFor(severity: Severity, scale: number) {
@@ -122,21 +388,23 @@ export function createPuzzle(
 }
 
 function oxygenLeak(rng: Rng, sim: Sim, scale: number, id: string): PuzzleInstance {
-  const consumption = int(rng, 14, 18);
+  const crew = pick(rng, [3, 4]);
+  const rate = pick(rng, [4, 5, 6]);
   const leak = int(rng, 4, 7);
-  const current = consumption - int(rng, 0, 2);
-  const required = consumption + leak;
+  const recycle = int(rng, 1, 3);
+  const demand = crew * rate;
+  const required = demand + leak - recycle;
+  const current = Math.max(10, required - int(rng, 3, 6));
   const kw = sim.o2KwPerLiter;
-  const extra = Math.max(0, required - current);
-  sim.oxygenDemand = consumption;
+  sim.oxygenDemand = demand - recycle;
   sim.oxygenLeak = leak;
   sim.oxygenProduction = current;
   return {
     id,
     type: "oxygen_leak",
     title: "OXYGEN LEAK",
-    problem: `Hull microfracture. Crew is burning oxygen and a leak is hissing out a hole. Generator is behind.`,
-    target: "Set production to crew use + leak. That sum is the only legal setting — not max, not “a little extra.”",
+    problem: "Hull microfracture. Crew is burning oxygen and a hole is hissing. The generator is behind — and flooding the cabin is not safer.",
+    target: "production = (crew × metabolic rate) + hull leak − scrubber recycle. That sum is the only legal setting.",
     howTo: PUZZLE_HOW_TO.oxygen_leak,
     cost: `Each extra L/min costs ${kw} kW that heaters and comms also need.`,
     risk: "Too low: people suffocate. Too high: you ‘fix’ air and brown out the habitat.",
@@ -144,16 +412,19 @@ function oxygenLeak(rng: Rng, sim: Sim, scale: number, id: string): PuzzleInstan
     severity: "urgent",
     assignedSystems: ["life_support"],
     controlSystems: ["life_support"],
+    operatorInfo: [
+      `Crew on board: ${crew}`,
+      `Scrubber recycle: ${recycle} L/min returned`,
+      `Current production: ${current} L/min`,
+      "Formula: production = (crew × metabolic rate) + hull leak − recycle",
+      "You cannot see metabolic rate or the hull leak from this module.",
+    ],
     infoBySystem: {
-      life_support: [
-        `Crew consumption: ${consumption} L/min`,
-        `Leak: ${leak} L/min`,
-        `Current production: ${current} L/min`,
-      ],
+      thermal: [`Metabolic rate: ${rate} L/min per person`],
+      exterior: [`Hull leak measured: ${leak} L/min`],
       power: [
-        `Each additional L/min oxygen generation requires ${kw} kW`,
-        `Raising output by ${extra} L/min would cost ${extra * kw} kW`,
-        `Current generation: ${sim.generation.toFixed(0)} kW`,
+        `Each extra L/min of O₂ generation costs ${kw} kW`,
+        `Current generation: ${sim.generation.toFixed(0)} kW — do not overshoot.`,
       ],
     },
     requiredRoom: "life_support",
@@ -165,15 +436,15 @@ function oxygenLeak(rng: Rng, sim: Sim, scale: number, id: string): PuzzleInstan
       label: "O₂ generator",
       unit: "L/min",
       min: 10,
-      max: 36,
+      max: 40,
       step: 1,
       value: current,
     },
     solution: required,
     optimal: required,
-    voice: "Habitat oxygen is falling. Life support, check your generator math.",
-    mc: "LIFE SUPPORT: hull leak confirmed. Demand plus leak is your target.",
-    chain: ["Oxygen leak detected", `Leak ${leak} L/min`],
+    voice: "Habitat oxygen is falling. Life support, you are missing two numbers. Ask.",
+    mc: "LIFE SUPPORT: four terms. Crew and recycle are on your board. Rate and leak are not.",
+    chain: ["Oxygen leak detected", "Hull telemetry isolated from the generator"],
   };
 }
 
@@ -197,8 +468,12 @@ function powerSplit(rng: Rng, scale: number, id: string): PuzzleInstance {
     severity: "urgent",
     assignedSystems: ["power"],
     controlSystems: ["power"],
+    operatorInfo: [
+      `Available bus: ${available} kW`,
+      "Formula: each slider = that station's critical kW. Sum must equal the bus.",
+      "You cannot see any station's draw from this board.",
+    ],
     infoBySystem: {
-      power: [`Available bus: ${available} kW`, "Ask each station for their critical draw."],
       life_support: [`Life Support critical requirement: ${ls} kW`],
       thermal: [`Thermal critical requirement: ${th} kW`],
       comms: [`Communications critical requirement: ${com} kW`],
@@ -234,25 +509,32 @@ function heater(rng: Rng, sim: Sim, scale: number, id: string): PuzzleInstance {
   const target = 20;
   const rate = 2;
   const every = 10;
+  const dust = pick(rng, [0, 10, 20]);
   const delta = target - current;
-  const seconds = (delta / rate) * every;
+  const seconds = (delta / rate) * every + dust;
   sim.temperature = current;
   return {
     id,
     type: "heater",
     title: "TEMPERATURE DROP",
-    problem: `Cabin is ${current}°C. Crew comfort is ${target}°C — not warmer.`,
-    target: `Gap ÷ rate = run time. Close ${delta}°C at +${rate}°C every ${every}s, then cut the heater.`,
+    problem: "Cabin is below crew comfort. Dust on the radiators adds time. Overshooting cooks them and drains the battery.",
+    target: "seconds = ((comfort − cabin) ÷ rise per tick) × tick + dust compensation. Then cut the heater.",
     howTo: PUZZLE_HOW_TO.heater,
     cost: "Heater draws 22 kW for the entire duration.",
     risk: "Short run: hypothermia. Long run: wasted power and overshoot.",
-    benefit: "Exact duration reaches 20°C as the heater cuts out.",
+    benefit: "Exact duration reaches comfort as the heater cuts out.",
     severity: "urgent",
     assignedSystems: ["thermal"],
     controlSystems: ["thermal"],
+    operatorInfo: [
+      `Cabin now: ${current}°C`,
+      `Heater rate: +${rate}°C every ${every} seconds`,
+      "Formula: seconds = ((comfort − cabin) ÷ 2) × 10 + dust compensation",
+      "You cannot see the comfort target or the dust compensation.",
+    ],
     infoBySystem: {
-      thermal: [`Cabin: ${current}°C`, `Heater rate: +${rate}°C every ${every} seconds`],
       life_support: [`Crew comfort target: ${target}°C`, "Do not overshoot — metabolic O₂ demand rises with heat."],
+      exterior: [`Dust compensation: +${dust} seconds (radiators fouled)`],
       power: ["Heater draw while active: 22 kW"],
     },
     requiredRoom: "crew",
@@ -277,17 +559,19 @@ function heater(rng: Rng, sim: Sim, scale: number, id: string): PuzzleInstance {
 
 function solarAngle(rng: Rng, sim: Sim, scale: number, id: string): PuzzleInstance {
   const optimal = int(rng, 58, 72);
-  const delta = pick(rng, [18, 21, 24, 25, 27, 30]);
-  const current = optimal - delta;
-  sim.solarOptimal = optimal;
+  const park = pick(rng, [18, 21, 24, 25, 27, 30]);
+  const bias = pick(rng, [-4, -2, 0, 3, 5]);
+  const current = optimal - park;
+  const rotate = park + bias;
+  sim.solarOptimal = optimal + bias;
   sim.solarAngle = current;
   sim.solarEfficiency = 0.58;
   return {
     id,
     type: "solar_angle",
     title: "SOLAR PANEL ALIGNMENT",
-    problem: `Arrays sit at ${current}°. Sun is elsewhere. Generation is down.`,
-    target: "Rotate by (optimal sun angle − current park angle). One number. Past the sun is as wrong as short of it.",
+    problem: "Arrays are parked off the sun. Magnetic bias from the storm shoves the true vector. Generation is down.",
+    target: "rotate = (optimal sun + magnetic bias) − current park. One number. Past the sun is as wrong as short of it.",
     howTo: PUZZLE_HOW_TO.solar_angle,
     cost: "Actuators draw 6 kW during the slew.",
     risk: "Wrong angle reduces efficiency further. Over-rotation past the sun wastes the move.",
@@ -295,10 +579,14 @@ function solarAngle(rng: Rng, sim: Sim, scale: number, id: string): PuzzleInstan
     severity: "routine",
     assignedSystems: ["exterior"],
     controlSystems: ["exterior"],
+    operatorInfo: [
+      `Current park angle: ${current}°`,
+      "Formula: rotate = (optimal sun + magnetic bias) − current",
+      "You can slew from the exterior catwalk. You cannot see optimal or bias.",
+    ],
     infoBySystem: {
-      exterior: [`Current angle: ${current}°`, "You can slew the array from the exterior catwalk."],
       power: [`Telemetry: optimal sun angle is ${optimal}°`],
-      comms: [`Mission Control ephemeris: solar vector ${optimal}°`],
+      comms: [`Magnetic storm bias: ${bias > 0 ? "+" : ""}${bias}°`],
     },
     requiredRoom: "exterior",
     requiredItem: "repair_kit",
@@ -314,9 +602,9 @@ function solarAngle(rng: Rng, sim: Sim, scale: number, id: string): PuzzleInstan
       step: 1,
       value: 0,
     },
-    solution: delta,
-    optimal: delta,
-    voice: "Solar output is off-peak. Someone has to go outside and slew the arrays.",
+    solution: rotate,
+    optimal: rotate,
+    voice: "Solar output is off-peak. Someone has to go outside. Two numbers are not on that board.",
     chain: ["Solar panels off-angle", "Power generation decreased"],
   };
 }
@@ -324,14 +612,15 @@ function solarAngle(rng: Rng, sim: Sim, scale: number, id: string): PuzzleInstan
 function medDose(rng: Rng, scale: number, id: string): PuzzleInstance {
   const mass = pick(rng, [58, 62, 65, 70, 74, 81, 88]);
   const mgkg = pick(rng, [1.5, 2, 2.5, 3]);
-  const dose = mass * mgkg;
+  const adjuvant = pick(rng, [0, 5, 10, 15]);
+  const dose = mass * mgkg + adjuvant;
   const name = pick(rng, ["HALO", "VEGA", "ION", "NOVA"]);
   return {
     id,
     type: "med_dose",
     title: "MEDICAL EMERGENCY",
-    problem: `Astronaut ${name} is hypoxic. Protocol is weight-based — one milligram off is harm.`,
-    target: "Push mass × protocol. Underdose fails. Overdose hits the liver. Only the product is legal.",
+    problem: `Astronaut ${name} is hypoxic. Protocol is weight-based, then a hypoxia adjuvant. One milligram off is harm.`,
+    target: "dose = mass × protocol + hypoxia adjuvant. Underdose fails. Overdose hits the liver.",
     howTo: PUZZLE_HOW_TO.med_dose,
     cost: "Treatment occupies Medical bus for 20 seconds.",
     risk: "Wrong milligrams injure the patient. Delay lets health keep falling.",
@@ -339,10 +628,14 @@ function medDose(rng: Rng, scale: number, id: string): PuzzleInstance {
     severity: "critical",
     assignedSystems: ["medical"],
     controlSystems: ["medical"],
+    operatorInfo: [
+      `Patient mass: ${mass} kg`,
+      "Formula: dose = mass × protocol + hypoxia adjuvant",
+      "Syringe is graduated in milligrams. You cannot see protocol or adjuvant.",
+    ],
     infoBySystem: {
-      medical: [`Patient mass: ${mass} kg`, "Syringe is graduated in milligrams."],
       comms: [`MISSION CONTROL PROTOCOL: ${mgkg} mg/kg antirad-oxygenate`],
-      life_support: [`Clinic note: dose = mass × protocol. Protocol is on the comms channel.`],
+      life_support: [`Hypoxia adjuvant: +${adjuvant} mg (can be zero)`],
     },
     requiredRoom: "medical",
     requiredItem: "medical_kit",
@@ -360,32 +653,37 @@ function medDose(rng: Rng, scale: number, id: string): PuzzleInstance {
     },
     solution: dose,
     optimal: dose,
-    voice: "Medical emergency. Dose is mass times protocol. Protocol is on the comms board.",
-    mc: `MEDICAL PROTOCOL ${mgkg} mg/kg. Confirm patient mass before you push.`,
+    voice: "Medical emergency. Mass is on Medical. Protocol and adjuvant are not.",
+    mc: "MEDICAL: do not push from memory. Protocol is on Comms. Adjuvant is on Life Support.",
     chain: ["Medical emergency", "Treatment will draw medical power"],
   };
 }
 
 function freqTune(rng: Rng, scale: number, id: string): PuzzleInstance {
-  const base = Math.round((7.2 + rng() * 1.8) * 10) / 10;
-  const offset = Math.round((0.2 + rng() * 0.5) * 10) / 10;
-  const target = Math.round((base + offset) * 10) / 10;
+  const base = Math.round((7.2 + rng() * 1.6) * 10) / 10;
+  const offset = Math.round((0.2 + rng() * 0.4) * 10) / 10;
+  const shift = pick(rng, [0, 0.1, 0.2, 0.3]);
+  const target = Math.round((base + offset + shift) * 10) / 10;
   return {
     id,
     type: "freq_tune",
     title: "COMMUNICATION FAILURE",
     problem: "Uplink dropped. Plasma is shoving the carrier. One frequency locks Earth; every other number is silence.",
-    target: "Tune to base beacon + interference offset. Add the two numbers you collect. Do not sweep at random.",
+    target: "lock = beacon base + interference offset + plasma shift. Add the three numbers. Do not sweep at random.",
     cost: "Transmitter draws 4 kW while sweeping.",
     risk: "Wrong lock loses Mission Control warnings until retuned.",
     benefit: "Correct lock restores intel and flare forecasts.",
     severity: "urgent",
     assignedSystems: ["comms"],
     controlSystems: ["comms"],
+    operatorInfo: [
+      `Atmospheric interference offset: +${offset.toFixed(1)} GHz`,
+      "Formula: lock = beacon base + offset + plasma shift",
+      "You cannot see the beacon or the plasma shift from this rack.",
+    ],
     infoBySystem: {
-      comms: [`Atmospheric interference offset: +${offset.toFixed(1)} GHz`],
       exterior: [`Beacon etched on the high-gain: ${base.toFixed(1)} GHz`],
-      power: [`Last locked carrier was ${base.toFixed(1)} GHz before the drop.`],
+      power: [`Plasma shift this sol: +${shift.toFixed(1)} GHz`],
     },
     requiredRoom: "comms",
     requiresPresence: true,
@@ -422,6 +720,9 @@ function reactorReset(rng: Rng, scale: number, id: string): PuzzleInstance {
     severity: "critical",
     assignedSystems: ["power", "life_support"],
     controlSystems: ["power", "life_support"],
+    operatorInfo: [
+      "Formula: type ALPHA × BETA. You have one factor. Get the other out loud. Confirm together.",
+    ],
     infoBySystem: {
       power: [`ALPHA CODE: ${alpha}`],
       life_support: [`BETA CODE: ${beta}`],
@@ -461,6 +762,7 @@ function airlockSeal(scale: number, id: string): PuzzleInstance {
     severity: "critical",
     assignedSystems: ["life_support", "exterior", "thermal", "power"],
     controlSystems: ["life_support", "exterior", "thermal", "power", "comms", "medical"],
+    operatorInfo: ["Two people must hold SEAL together. Walk to the Airlock. One person cannot dog the hatch."],
     infoBySystem: {
       life_support: ["Pressure will not hold until two people dog the hatch."],
       exterior: ["Airlock is the only manual override."],
@@ -502,8 +804,8 @@ function co2Route(rng: Rng, scale: number, id: string): PuzzleInstance {
     severity: "urgent",
     assignedSystems: ["life_support"],
     controlSystems: ["life_support"],
+    operatorInfo: [p.clueB, "Install the repair kit, then route. You have one clue — Power has the other."],
     infoBySystem: {
-      life_support: [p.clueB, "Install the repair kit, then route."],
       power: [p.clueA, "Electrical interlock will reject a live burned junction."],
     },
     requiredRoom: "life_support",
@@ -555,7 +857,7 @@ function patternPuzzle(rng: Rng, scale: number, id: string): PuzzleInstance {
     id,
     type: "pattern",
     title: "UPLINK HANDSHAKE",
-    problem: `Handshake stream: ${seq.join(" · ")} · ?`,
+    problem: "Handshake desynced. The stream is on Comms. The keypad is on Power. Guessing burns the uplink.",
     target: "Read the rule on the stream, then enter the next number. Guessing desyncs the uplink.",
     cost: "Failed handshake adds 8 seconds of comms noise.",
     risk: "A wrong next-symbol desyncs encryption for a full minute.",
@@ -563,9 +865,9 @@ function patternPuzzle(rng: Rng, scale: number, id: string): PuzzleInstance {
     severity: "routine",
     assignedSystems: ["comms"],
     controlSystems: ["power"],
+    operatorInfo: ["The reactor console is the only keypad that can inject the next handshake symbol. Ask Comms for the stream and the rule."],
     infoBySystem: {
       comms: [`Stream: ${seq.join(" · ")}`, `Pattern family: ${rule}`],
-      power: ["The reactor console is the only keypad that can inject the next handshake symbol."],
     },
     requiredRoom: "power",
     requiresPresence: true,
@@ -603,8 +905,8 @@ function memoryCode(rng: Rng, scale: number, id: string): PuzzleInstance {
     severity: "urgent",
     assignedSystems: ["thermal"],
     controlSystems: ["thermal"],
+    operatorInfo: ["Override console is in Crew. The AUTH CODE is not stored locally. Ask Comms — they heard Mission Control."],
     infoBySystem: {
-      thermal: ["Override console is in Crew. The code is not stored locally."],
       comms: [`If you were listening: AUTH CODE ${code}`],
       life_support: ["Ask Communications. They heard it first."],
     },
@@ -645,8 +947,8 @@ function valveLogic(rng: Rng, scale: number, id: string): PuzzleInstance {
     severity: "critical",
     assignedSystems: ["life_support"],
     controlSystems: ["life_support"],
+    operatorInfo: [`Painted order: ${order.join(" then ")}`, "You see colors, not numbers. Ask Power which valve is which color."],
     infoBySystem: {
-      life_support: [`Painted order: ${order.join(" then ")}`, "You see colors, not numbers."],
       power: [
         `Valve 1 is ${invert(map, "1")}`,
         `Valve 2 is ${invert(map, "2")}`,
@@ -693,8 +995,8 @@ function powerSurge(rng: Rng, scale: number, id: string): PuzzleInstance {
     severity: "urgent",
     assignedSystems: ["power"],
     controlSystems: ["power"],
+    operatorInfo: ["You can trip branches from the reactor board. You do not know which must stay. Ask the crew."],
     infoBySystem: {
-      power: ["You can trip branches from the reactor board. You do not know which must stay."],
       life_support: keep === "life_support" ? ["KEEP LIFE SUPPORT POWERED"] : ["Life Support can brown out for 20s."],
       thermal: keep === "thermal" ? ["KEEP THERMAL POWERED"] : ["Cabin can hold temperature for 20s."],
       comms: keep === "comms" ? ["KEEP COMMS POWERED"] : ["Uplink can drop."],
@@ -727,16 +1029,20 @@ function pressurePatch(rng: Rng, scale: number, id: string): PuzzleInstance {
     id,
     type: "pressure_patch",
     title: "HULL FOAM PATCH",
-    problem: `${holes} puncture sites at ${psi} kPa differential each.`,
-    target: "Foam = differential × puncture count. Undercharge leaks. Overcharge clogs a vent and raises CO₂.",
+    problem: "Hull punctures mapped. Foam charge is differential × hole count. Undercharge leaks. Overcharge clogs a vent.",
+    target: "Foam = differential × puncture count. Collect both numbers. Do not guess.",
     cost: "Foam cartridge is single-use.",
     risk: "Undercharge fails to seal. Overcharge clogs a vent and raises CO₂.",
     benefit: "Exact charge seals all punctures.",
     severity: "urgent",
     assignedSystems: ["exterior"],
     controlSystems: ["exterior"],
+    operatorInfo: [
+      `Puncture sites: ${holes}`,
+      "Formula: foam = differential × puncture count",
+      "You cannot see the kPa differential from the catwalk.",
+    ],
     infoBySystem: {
-      exterior: [`Puncture sites: ${holes}`],
       life_support: [`Differential per site: ${psi} kPa`],
     },
     requiredRoom: "airlock",

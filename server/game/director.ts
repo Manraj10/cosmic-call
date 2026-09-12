@@ -25,7 +25,12 @@ const CORE = [
 ] as const;
 
 export function planMission(rng: Rng, playerCount: number): Planned[] {
-  const types = shuffle(rng, [...CORE]);
+  const head: (typeof CORE)[number][] = ["oxygen_leak", "power_split", "med_dose", "freq_tune", "heater"];
+  const rest = shuffle(
+    rng,
+    CORE.filter((t) => !head.includes(t)),
+  );
+  const types = [...head, ...rest];
   const span = 7 * 60 * 1000;
   const start = 16000;
   const gap = playerCount <= 2 ? 38000 : playerCount === 3 ? 30000 : 24000;

@@ -145,12 +145,56 @@ export function HabitatMap({
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
+            <filter id="soft">
+              <feGaussianBlur stdDeviation="8" result="b" />
+              <feMerge>
+                <feMergeNode in="b" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
             <linearGradient id="deck" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#7ee7ff" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="#7ee7ff" stopOpacity="0.02" />
+              <stop offset="0%" stopColor="#7ee7ff" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#ff8a3a" stopOpacity="0.04" />
+            </linearGradient>
+            <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#1a1028" />
+              <stop offset="55%" stopColor="#3a1810" />
+              <stop offset="100%" stopColor="#7a3014" />
+            </linearGradient>
+            <radialGradient id="sun" cx="80%" cy="12%" r="18%">
+              <stop offset="0%" stopColor="#ffe7a8" stopOpacity="0.95" />
+              <stop offset="40%" stopColor="#ff9a3a" stopOpacity="0.45" />
+              <stop offset="100%" stopColor="#ff6a2a" stopOpacity="0" />
+            </radialGradient>
+            <linearGradient id="tube" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#7ee7ff" stopOpacity="0.15" />
+              <stop offset="50%" stopColor="#7ee7ff" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="#7ee7ff" stopOpacity="0.15" />
             </linearGradient>
           </defs>
-          <text x="500" y="20" textAnchor="middle" fill="#f6c19b" fontSize="12" letterSpacing="5">
+          <rect width="1000" height="640" fill="url(#sky)" />
+          <rect width="1000" height="640" fill="url(#sun)" />
+          <circle cx="820" cy="70" r="28" fill="#ffd27a" filter="url(#soft)" opacity="0.85" />
+          <ellipse cx="500" cy="640" rx="560" ry="90" fill="#4a1c0c" opacity="0.55" />
+          <ellipse cx="220" cy="610" rx="180" ry="40" fill="#2a1008" opacity="0.5" />
+          <ellipse cx="800" cy="620" rx="200" ry="36" fill="#3a1408" opacity="0.45" />
+          {[
+            [80, 40],
+            [140, 90],
+            [210, 30],
+            [300, 70],
+            [430, 25],
+            [520, 80],
+            [610, 35],
+            [700, 95],
+            [760, 20],
+            [900, 55],
+            [960, 110],
+            [40, 160],
+          ].map(([x, y], i) => (
+            <circle key={i} cx={x} cy={y} r={i % 3 === 0 ? 1.6 : 1} fill="#fff" opacity={0.45 + (i % 5) * 0.08} />
+          ))}
+          <text x="500" y="22" textAnchor="middle" fill="#f6c19b" fontSize="13" letterSpacing="6">
             ARES HABITAT  ·  SOL 147
           </text>
 
@@ -158,16 +202,38 @@ export function HabitatMap({
             const ca = center(a, 1);
             const cb = center(b, 1);
             return (
-              <line
-                key={`${a}-${b}`}
-                x1={ca.x}
-                y1={ca.y}
-                x2={cb.x}
-                y2={cb.y}
-                stroke="#7ee7ff44"
-                strokeWidth="10"
-                strokeLinecap="round"
-              />
+              <g key={`${a}-${b}`}>
+                <line
+                  x1={ca.x}
+                  y1={ca.y}
+                  x2={cb.x}
+                  y2={cb.y}
+                  stroke="#0b1c28"
+                  strokeWidth="18"
+                  strokeLinecap="round"
+                />
+                <line
+                  x1={ca.x}
+                  y1={ca.y}
+                  x2={cb.x}
+                  y2={cb.y}
+                  stroke="#7ee7ff"
+                  strokeWidth="11"
+                  strokeLinecap="round"
+                  opacity="0.35"
+                />
+                <line
+                  x1={ca.x}
+                  y1={ca.y}
+                  x2={cb.x}
+                  y2={cb.y}
+                  stroke="#d6fbff"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  opacity="0.7"
+                  strokeDasharray="6 10"
+                />
+              </g>
             );
           })}
 
@@ -213,6 +279,43 @@ export function HabitatMap({
                   strokeWidth={selected || dest ? 3.2 : 1.5}
                 />
                 <polygon points={poly(top)} fill="url(#deck)" />
+                <ellipse
+                  cx={r.x + r.w * 0.5}
+                  cy={r.y + r.h * 0.42}
+                  rx={18}
+                  ry={10}
+                  fill={h.emergencyLights ? "#ff5a3a" : "#7ee7ff"}
+                  opacity={h.emergencyLights ? 0.35 : 0.18}
+                />
+                <rect
+                  x={r.x + r.w * 0.38}
+                  y={r.y + r.h * 0.18}
+                  width={r.w * 0.24}
+                  height={12}
+                  rx="2"
+                  fill="#081018"
+                  stroke="#9be7ff"
+                  strokeWidth="0.8"
+                  opacity="0.85"
+                />
+                {id === "airlock" && (
+                  <g>
+                    {[0, 1, 2].map((i) => (
+                      <polygon
+                        key={i}
+                        points={`${r.x + 40 + i * 36},${r.y + 58} ${r.x + 52 + i * 36},${r.y + 48} ${r.x + 64 + i * 36},${r.y + 58}`}
+                        fill="#ffb020"
+                        opacity="0.8"
+                      />
+                    ))}
+                  </g>
+                )}
+                {id === "comms" && (
+                  <g>
+                    <line x1={r.x + r.w - 28} y1={r.y + 8} x2={r.x + r.w - 8} y2={r.y - 18} stroke="#7ee7ff" strokeWidth="2" />
+                    <circle cx={r.x + r.w - 8} cy={r.y - 18} r="5" fill="none" stroke="#7ee7ff" />
+                  </g>
+                )}
                 {id === "exterior" && (
                   <g>
                     <rect
@@ -310,24 +413,28 @@ export function HabitatMap({
                 filter="url(#glow)"
                 style={{ pointerEvents: "none" }}
               >
-                <ellipse cx={pos.x} cy={pos.y + 18} rx="12" ry="5" fill="#0008" />
+                <ellipse cx={pos.x} cy={pos.y + 22} rx="14" ry="5" fill="#0009" />
                 {mine && (
-                  <circle cx={pos.x} cy={pos.y} r="22" fill="none" stroke="#ffb020" strokeWidth="2" opacity="0.7" />
+                  <circle cx={pos.x} cy={pos.y} r="26" fill="none" stroke="#ffb020" strokeWidth="2" opacity="0.75" />
                 )}
+                <rect x={pos.x + 6} y={pos.y - 4} width="7" height="12" rx="2" fill="#234" />
                 <rect
-                  x={pos.x - 7}
+                  x={pos.x - 8}
                   y={pos.y - 6}
-                  width="14"
-                  height="18"
-                  rx="4"
+                  width="16"
+                  height="20"
+                  rx="5"
                   fill={p.color}
                   opacity={p.incapacitated ? 0.4 : 1}
                 />
-                <circle cx={pos.x} cy={pos.y - 14} r="8" fill="#dceaf4" />
-                <ellipse cx={pos.x} cy={pos.y - 14} rx="5" ry="3.4" fill="#123" />
+                <rect x={pos.x - 6} y={pos.y + 10} width="5" height="8" rx="1.5" fill={p.color} />
+                <rect x={pos.x + 1} y={pos.y + 10} width="5" height="8" rx="1.5" fill={p.color} />
+                <circle cx={pos.x} cy={pos.y - 16} r="10" fill="#dceaf4" />
+                <ellipse cx={pos.x} cy={pos.y - 16} rx="7" ry="5" fill="#0a2030" />
+                <ellipse cx={pos.x - 2} cy={pos.y - 17} rx="3" ry="2" fill="#7ee7ff" opacity="0.55" />
                 <text
                   x={pos.x}
-                  y={pos.y + 32}
+                  y={pos.y + 36}
                   textAnchor="middle"
                   fill={mine ? "#ffb020" : "#fff"}
                   fontSize="11"
@@ -336,7 +443,7 @@ export function HabitatMap({
                   {p.name}
                 </text>
                 {p.incapacitated && (
-                  <text x={pos.x} y={pos.y - 28} textAnchor="middle" fill="#ff3b4e" fontSize="10">
+                  <text x={pos.x} y={pos.y - 32} textAnchor="middle" fill="#ff3b4e" fontSize="10">
                     DOWN
                   </text>
                 )}

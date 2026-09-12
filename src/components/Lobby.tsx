@@ -38,8 +38,17 @@ export function Landing({
           <br />
           THE ASTRONAUT
         </h1>
+        <svg viewBox="0 0 320 90" className="landing-hab mx-auto mt-4 h-16 w-full max-w-sm">
+          <ellipse cx="160" cy="78" rx="90" ry="10" fill="#0006" />
+          <rect x="70" y="42" width="180" height="28" rx="6" fill="#1c2a38" stroke="#7ee7ff" />
+          <rect x="130" y="18" width="60" height="28" rx="4" fill="#243444" stroke="#ffb020" />
+          <circle cx="160" cy="32" r="8" fill="#7ee7ff" opacity="0.35" />
+          <rect x="40" y="50" width="28" height="16" rx="3" fill="#4a3414" stroke="#ffb020" />
+          <rect x="252" y="50" width="28" height="16" rx="3" fill="#14443a" stroke="#7ee7ff" />
+        </svg>
         <p className="mt-4 text-sm text-cyan-100/70 sm:text-base">
-          2–4 astronauts. Rescue in 7 minutes. A computer can host the shared habitat screen without taking a crew seat.
+          2–4 astronauts. Rescue in 7 minutes. Each person gets a job nobody else has — the habitat only lives if you talk.
+          A computer can host the shared screen without taking a crew seat.
         </p>
         <div className="glass mt-8 space-y-4 rounded-2xl p-5 text-left">
           <label className="block">

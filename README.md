@@ -56,7 +56,7 @@ The **server owns the habitat**. Clients send actions. The engine validates them
 
 Exact numbers live on **personal boards**. The shared map only shows STABLE / WARNING / CRITICAL, astronauts walking between modules, and world reactions (dust, dim lights, frost, solar slew, comms glitch).
 
-Puzzles are **deterministic**. Every task shows the physical tradeoff and the one plausible action (for oxygen: match crew use + leak — cranking O₂ higher is not safer, it steals power). If a setting is bad, the simulation explains the physics — it never shrugs and says “wrong.”
+Puzzles are **deterministic split-information boards**. One shared crisis. The astronaut with the dial never sees the numbers they need — even if their role also covers that system. Everyone else has unique terms in a 3–5 variable formula. Talk. The habitat accepts one physical answer.
 
 ## Roles
 

@@ -27,7 +27,7 @@ import type {
 } from "../../src/shared/protocol";
 import { environmentalAt, planMission } from "./director";
 import { fallbackRecap, grokLine, grokRecap } from "./grok";
-import { applyPuzzle, createPuzzle, howToFor, type PuzzleInstance } from "./puzzles";
+import { applyPuzzle, boardCopy, createPuzzle, howToFor, intelFor, type PuzzleInstance } from "./puzzles";
 import { mulberry32, pick, type Rng } from "./rng";
 import { maxUrgentTasks, roleCard, ROLE_DEFS, rolesForCount, timerScale } from "./roles";
 import {
@@ -877,7 +877,11 @@ export class GameRoom {
       canStart: this.phase === "lobby" && this.astronautCount() >= MIN_PLAYERS,
       roomFull: this.astronautCount() >= MAX_PLAYERS,
       playerCount: this.astronautCount(),
-      intensity: hab.emergencyLights ? 1 : hab.lightsDim ? 0.55 : 0.2,
+      intensity: Math.max(
+        hab.emergencyLights ? 0.85 : hab.lightsDim ? 0.5 : 0.18,
+        this.phase === "playing" ? Math.min(1, (now - this.startedAt) / MISSION_MS) : 0,
+        this.tasks.filter((t) => !t.resolved).length * 0.22,
+      ),
     };
   }
 
@@ -1006,13 +1010,13 @@ function taskView(
   players: Map<string, Player>,
 ): TaskView {
   const puz = t.puzzle;
-  const info: string[] = [];
-  for (const s of systems) {
-    const chunk = puz.infoBySystem[s];
-    if (chunk) info.push(...chunk);
-  }
   const assigned = puz.assignedSystems.some((s) => systems.includes(s));
   const control = puz.controlSystems.some((s) => systems.includes(s));
+  const brief = boardCopy(puz.type, systems, control);
+  const crewSystems = [...players.values()]
+    .filter((p) => p.kind !== "monitor" && p.roleId)
+    .map((p) => ROLE_DEFS[p.roleId!].systems);
+  const info = intelFor(puz, systems, control, crewSystems);
   const loc = you ? currentRoom(you.astro, now) : "crew";
   const inRoom = !puz.requiredRoom || loc === puz.requiredRoom;
   const names = [...players.values()]
@@ -1033,7 +1037,7 @@ function taskView(
     problem: puz.problem,
     target: puz.target,
     howTo: howToFor(puz.type, puz.howTo),
-    availableInfo: info.length ? info : ["You do not have local telemetry for this. Ask the crew."],
+    availableInfo: info,
     cost: puz.cost,
     risk: puz.risk,
     benefit: puz.benefit,
@@ -1041,6 +1045,8 @@ function taskView(
     severity: puz.severity,
     assignedToYou: assigned,
     youHaveControl: control,
+    yourJob: brief.job,
+    askCrew: brief.ask,
     requiresPresence: puz.requiresPresence,
     requiredRoom: puz.requiredRoom,
     requiredItem: puz.requiredItem,
