@@ -283,8 +283,10 @@ export class Hab {
           hit += 30
           this.alarm('SHIELDS WERE DOWN — HULL SCOURED')
         }
+        // Steep on purpose. At 14 a crew could skip the brace entirely and still
+        // survive, which made Idris's second call decoration.
         if (this.elapsed - this.bracedAt > BRACE_WINDOW_SECONDS) {
-          hit += 14
+          hit += 26
           this.alarm('NOBODY BRACED')
         }
         if (hit) {

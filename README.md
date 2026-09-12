@@ -89,19 +89,29 @@ scripts/playtest.ts headless balance harness
 npm run playtest
 ```
 
-Simulates crews at different reaction speeds, then silences each crew member in turn. It asserts the two things the design depends on: a crew who relays in the right order survives, and there is no seat you can leave empty.
+Simulates crews at different reaction speeds, then silences each player in turn, then silences each individual call. It asserts the things the design depends on: relaying in the right order survives, no seat can be left empty, and no call is decoration.
 
 ```
 === the one path ===
-all three, sharp (1.2s)        won 8/8   air floor  22
-all three, normal (2.2s)       won 8/8   air floor   2
-all three, slow (3.6s)         won 7/8   air floor   0
+all three, sharp (1.2s)        won 8/8   air floor  24
+all three, normal (2.2s)       won 8/8   air floor  20
+all three, slow (3.6s)         won 8/8   air floor  14
+all three, sloppy (5.0s)       won 0/8   air floor   0
+all three + Vega on her gauge  won 8/8   air floor  20
 
-=== every one of them is load-bearing ===
+=== every seat is load-bearing ===
 Rook silent (no pump calls)    won 0/8   air floor   0
-Idris silent (no storm calls)  won 0/8   air floor   0
+Idris silent (no storm calls)  won 0/8   air floor  48
 Chen silent (no valve calls)   won 0/8   air floor   0
 nobody signals at all          won 0/8   air floor   0
+Vega alone, playing her gauge  won 0/8   air floor   0
+
+=== and so is every single call ===
+brace never called             won 0/8   air floor   0
+shields never called           won 0/8   air floor   0
+pump-off never called          won 0/8   air floor   0
 ```
 
-A slow crew losing sometimes is intentional. If you want to soften it for a demo, `MISSION_SECONDS` and the starting air in `server/game.ts` are the two dials that matter.
+Two of those rows are the interesting ones. **Vega alone** is a Vega who ignores the pad and plays her air gauge as well as anyone could — she still dies every time, because two of the three emergencies are invisible to her. And **sloppy (5.0s)** is where the cliff is: a crew that dawdles by another second and a half over the slow crew goes from 8/8 to 0/8.
+
+If you want to soften it for a demo, the dials that matter are `MISSION_SECONDS` in `shared/content.ts` and the starting air in `server/game.ts`. Lower starting air is *not* a difficulty knob — it drops the cabin below the overpressure ceiling and turns the pump runaway into free air, which inverts the whole design.

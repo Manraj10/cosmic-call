@@ -65,21 +65,29 @@ function makeHab(seed: number) {
   return { hab, inner: hab as unknown as Internals }
 }
 
-/** What the crew collectively want Vega to do, in priority order. */
-function desired(inner: Internals): SignalId | null {
+/**
+ * What the crew collectively want Vega to do, most urgent first. A list rather
+ * than one answer so that when a call is skipped the table falls through to the
+ * next thing worth saying, the way real players would.
+ */
+function desired(inner: Internals, braceLead: number): SignalId[] {
   const leaking = VALVES.filter((v) => inner.leaks[v] && inner.valves[v] !== 'sealed')
   const runaway = inner.elapsed < inner.runawayUntil
   const eta = inner.stormEta
+  const want: SignalId[] = []
 
-  if (runaway && inner.pumpOn) return 'pump-off'
-  if (eta != null && !inner.stormActive && eta <= 2.5) return 'brace'
-  if (eta != null && !inner.stormActive && eta <= 13 && !inner.shieldsOn) return 'shields-on'
+  if (runaway && inner.pumpOn) want.push('pump-off')
+  // Idris leads the target by his own reaction plus hers, aiming for her thumb to
+  // land about a second and a half before impact. Too early misses the window
+  // just as badly as too late.
+  if (eta != null && !inner.stormActive && eta <= braceLead) want.push('brace')
+  if (eta != null && !inner.stormActive && eta <= 13 && !inner.shieldsOn) want.push('shields-on')
   // Shields have to be held through the front, and that means no pump.
-  if (inner.stormActive && inner.pumpOn) return 'pump-off'
-  if (leaking.length) return leaking[0] === 'port' ? 'seal-port' : 'seal-starboard'
+  if (inner.stormActive && inner.pumpOn) want.push('pump-off')
+  if (leaking.length) want.push(leaking[0] === 'port' ? 'seal-port' : 'seal-starboard')
   // Restarting the pump mid-runaway just re-floods the cabin.
-  if (!inner.stormActive && !runaway && !inner.pumpOn && inner.air < 72) return 'pump-on'
-  return null
+  if (!inner.stormActive && !runaway && !inner.pumpOn && inner.air < 72) want.push('pump-on')
+  return want
 }
 
 interface Sim {
@@ -88,6 +96,32 @@ interface Sim {
   vegaLag: number
   /** Crew members who are absent or silent this run. */
   missing: CrewId[]
+  /** Individual calls nobody makes, for testing whether one call is load-bearing. */
+  skip?: SignalId[]
+  /**
+   * Vega playing her own gauge instead of only obeying signals. She can see the
+   * air number and the overpressure hatching, so a sharp player really would do
+   * this. If she can carry the round alone the whole premise is dead.
+   */
+  vegaSolo?: boolean
+}
+
+/**
+ * What Vega can work out with no help at all: the air number, and nothing else.
+ * `obeyedPumpAt` keeps her from undoing an order she just followed — a real
+ * player trusts a signal for a few seconds before overriding it.
+ */
+function vegaSelfDrive(hab: Hab, inner: Internals, obeyedPumpAt: number | null) {
+  const air = inner.air
+  const trusting = obeyedPumpAt != null && inner.elapsed - obeyedPumpAt < 10
+  if (air > 96 && inner.pumpOn) hab.applyAction('vega', { type: 'pump', on: false })
+  else if (air < 58 && !inner.pumpOn && !trusting) hab.applyAction('vega', { type: 'pump', on: true })
+  // Air bleeding with the pump already running means a leak, but not which one.
+  // Guessing is all she has, so let her guess — and pay for a wrong guess.
+  if (air < 40) {
+    const open = VALVES.filter((v) => inner.valves[v] === 'open')
+    if (open.length > 1) hab.applyAction('vega', { type: 'valve', valve: open[0], sealed: true })
+  }
 }
 
 function run(sim: Sim, seed: number) {
@@ -98,6 +132,7 @@ function run(sim: Sim, seed: number) {
   let noticedAt: number | null = null
   let vegaTodo: SignalId | null = null
   let vegaSawAt: number | null = null
+  let obeyedPumpAt: number | null = null
   let minAir = 999
   const steps = Math.ceil((MISSION_SECONDS + 1) / 0.1)
 
@@ -106,17 +141,17 @@ function run(sim: Sim, seed: number) {
     if (hab.phase !== 'play') break
     const t = inner.elapsed
 
-    const want = desired(inner)
+    const want =
+      desired(inner, 1.5 + sim.lag + sim.vegaLag).find(
+        (s) => !sim.missing.includes(SIGNAL_OWNER[s]) && !sim.skip?.includes(s),
+      ) ?? null
     if (want && want !== intent) {
       intent = want
       noticedAt = t
     }
     if (intent && noticedAt != null && t - noticedAt >= sim.lag) {
-      const owner = SIGNAL_OWNER[intent]
-      if (!sim.missing.includes(owner)) {
-        const err = act(owner, { type: 'signal', signal: intent })
-        if (!err) intent = null
-      }
+      const err = act(SIGNAL_OWNER[intent], { type: 'signal', signal: intent })
+      if (!err) intent = null
     }
 
     const view = hab.viewFor('vega')!
@@ -129,9 +164,11 @@ function run(sim: Sim, seed: number) {
       switch (vegaTodo) {
         case 'pump-off':
           act('vega', { type: 'pump', on: false })
+          obeyedPumpAt = t
           break
         case 'pump-on':
           act('vega', { type: 'pump', on: true })
+          obeyedPumpAt = t
           break
         case 'seal-port':
           act('vega', { type: 'valve', valve: 'port', sealed: true })
@@ -149,6 +186,8 @@ function run(sim: Sim, seed: number) {
       act('vega', { type: 'clear-signals' })
       vegaTodo = null
     }
+
+    if (sim.vegaSolo) vegaSelfDrive(hab, inner, obeyedPumpAt)
 
     minAir = Math.min(minAir, inner.air)
   }
@@ -178,8 +217,18 @@ console.log('=== the one path ===')
 const sharp = report({ label: 'all three, sharp (1.2s)', lag: 1.2, vegaLag: 0.7, missing: [] })
 const normal = report({ label: 'all three, normal (2.2s)', lag: 2.2, vegaLag: 1.3, missing: [] })
 const slow = report({ label: 'all three, slow (3.6s)', lag: 3.6, vegaLag: 2.2, missing: [] })
+const sloppy = report({ label: 'all three, sloppy (5.0s)', lag: 5, vegaLag: 3, missing: [] })
 
-console.log('\n=== every one of them is load-bearing ===')
+// The realistic good-table case: she obeys the pad AND works her own gauge.
+const helped = report({
+  label: 'all three + Vega on her gauge',
+  lag: 2.2,
+  vegaLag: 1.3,
+  missing: [],
+  vegaSolo: true,
+})
+
+console.log('\n=== every seat is load-bearing ===')
 const noRook = report({
   label: 'Rook silent (no pump calls)',
   lag: 1.2,
@@ -204,19 +253,56 @@ const nobody = report({
   vegaLag: 0.7,
   missing: ['engineer', 'pilot', 'sparks'],
 })
+const solo = report({
+  label: 'Vega alone, playing her gauge',
+  lag: 1.2,
+  vegaLag: 0.7,
+  missing: ['engineer', 'pilot', 'sparks'],
+  vegaSolo: true,
+})
+console.log('\n=== and so is every single call ===')
+const noBrace = report({
+  label: 'brace never called',
+  lag: 2.2,
+  vegaLag: 1.3,
+  missing: [],
+  skip: ['brace'],
+})
+const noShields = report({
+  label: 'shields never called',
+  lag: 2.2,
+  vegaLag: 1.3,
+  missing: [],
+  skip: ['shields-on'],
+})
+const noPumpOff = report({
+  label: 'pump-off never called',
+  lag: 2.2,
+  vegaLag: 1.3,
+  missing: [],
+  skip: ['pump-off'],
+})
 
 const problems: string[] = []
 if (sharp < SEEDS.length) problems.push('a sharp crew running the correct sequence must always win')
 if (normal < SEEDS.length - 1) problems.push('a normal crew should usually win')
-if (slow >= SEEDS.length) problems.push('a slow crew should sometimes lose — no slack allowed')
+if (slow < SEEDS.length - 2) problems.push('a slow crew should still usually win')
+if (sloppy >= SEEDS.length) problems.push('a sloppy crew must sometimes lose — there has to be a ceiling')
+// Initiative must never be punished. If she does worse by thinking for herself,
+// the most engaged player at the table is the one breaking the round.
+if (helped < normal) problems.push('a Vega who works her own gauge must not do worse than one who only obeys')
 if (noRook > 0) problems.push('Rook is not load-bearing')
 if (noIdris > 0) problems.push('Idris is not load-bearing')
 if (noChen > 0) problems.push('Chen is not load-bearing')
 if (nobody > 0) problems.push('silence must never win')
+if (solo > 0) problems.push('a clever Vega must not be able to carry the round alone')
+if (noBrace > 0) problems.push('the brace call is decoration')
+if (noShields > 0) problems.push('the shields call is decoration')
+if (noPumpOff > 0) problems.push('the pump-off call is decoration')
 
 if (problems.length) {
   console.log('\nBALANCE NOT READY:')
   for (const p of problems) console.log(`  - ${p}`)
   process.exit(1)
 }
-console.log('\nbalance OK: one path, and all three of them are on it')
+console.log('\nbalance OK: one path, four seats on it, and not one spare call')
