@@ -4,7 +4,7 @@ export function Debrief({ view }: { view: ClientView }) {
   const won = view.outcome === 'won'
   return (
     <div
-      className="app stage scanlines"
+      className="app stage"
       style={{ '--plate': 'url(/art/hero-hab.webp)' } as React.CSSProperties}
     >
       <div className="verdict">

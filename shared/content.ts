@@ -86,14 +86,15 @@ export const SIGNALS: {
     id: 'seal-port',
     label: 'SEAL PORT',
     mark: '◀',
-    hint: 'Only you can see which valve is bleeding',
+    // Port and starboard are jargon, and the log uses them. Spell it out.
+    hint: 'Port = left',
     owner: 'sparks',
   },
   {
     id: 'seal-starboard',
     label: 'SEAL STBD',
     mark: '▶',
-    hint: 'Only you can see which valve is bleeding',
+    hint: 'Starboard = right',
     owner: 'sparks',
   },
   {

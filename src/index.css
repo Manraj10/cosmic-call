@@ -444,6 +444,18 @@ input {
   overflow: hidden;
 }
 
+/* Chen's log is the whole screen, so it takes the slack instead of a spacer. */
+.readout.fill {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.readout.fill .log {
+  flex: 1;
+}
+
 .log div {
   color: var(--alarm);
 }
@@ -460,9 +472,9 @@ input {
 /* ---------- cinematic backdrop ---------- */
 
 /*
- * The art plate is deliberately underexposed, so it gets brightened here and
- * held on its own layer. Putting the image straight into a background with a
- * dark gradient over it just renders as black.
+ * The plate sits on its own layer under a separate vignette layer rather than
+ * going into one background with a gradient over it, so the two can be tuned
+ * against each other without the gradient swallowing the photo.
  */
 .stage {
   position: relative;
@@ -476,8 +488,10 @@ input {
   background-image: var(--plate);
   background-size: cover;
   background-position: center;
-  filter: brightness(1.85) saturate(1.15) contrast(1.05);
-  opacity: 0.62;
+  /* The plate is properly exposed now, so this only warms it rather than
+     trying to rescue it. */
+  filter: saturate(1.1) contrast(1.02);
+  opacity: 0.72;
   z-index: -2;
   pointer-events: none;
 }
@@ -488,14 +502,19 @@ input {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(115% 75% at 50% 42%, transparent 0%, rgba(13, 9, 6, 0.82) 78%),
-    linear-gradient(rgba(13, 9, 6, 0.55), rgba(13, 9, 6, 0.2) 34%, rgba(13, 9, 6, 0.88));
+    radial-gradient(125% 85% at 50% 40%, transparent 0%, rgba(13, 9, 6, 0.66) 88%),
+    linear-gradient(rgba(13, 9, 6, 0.42), rgba(13, 9, 6, 0.08) 38%, rgba(13, 9, 6, 0.88));
   z-index: -1;
   pointer-events: none;
 }
 
-/* Faint CRT scanlines over everything, for the console feel. */
-.scanlines::before {
+/*
+ * Faint CRT scanlines over everything, for the console feel. This lives on the
+ * body and not on .stage because an element only has one ::before: when both
+ * rules targeted the same one, this shorthand `background` wiped out the art
+ * plate above and the screen rendered flat black.
+ */
+body::after {
   content: '';
   position: fixed;
   inset: 0;

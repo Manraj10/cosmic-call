@@ -14,7 +14,7 @@ export function Sparks({ view }: { view: ClientView }) {
 
   return (
     <Frame who={CREW_META.sparks.callsign} tag="only you see what broke" timeLeft={view.timeLeft}>
-      <div className="readout" style={{ paddingBottom: 12 }}>
+      <div className="readout fill" style={{ paddingBottom: 12 }}>
         <div className="label">alarm log</div>
         <div className="log" style={{ marginTop: 10, textAlign: 'left' }}>
           {lines.map((line, i) => (
@@ -25,7 +25,6 @@ export function Sparks({ view }: { view: ClientView }) {
           <div ref={end} />
         </div>
       </div>
-      <div className="grow" />
       <SignalPad view={view} crew="sparks" />
     </Frame>
   )

@@ -27,7 +27,7 @@ export function Home(props: {
 
   return (
     <div
-      className="app stage scanlines"
+      className="app stage"
       style={{ '--plate': 'url(/art/hero-hab.webp)' } as React.CSSProperties}
     >
       <div className="hero">
