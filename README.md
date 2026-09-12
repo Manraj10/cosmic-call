@@ -75,15 +75,32 @@ The key stays server-side and is proxied through `/api/voice`, so it never ships
 ## Layout
 
 ```
-server/game.ts      the whole simulation — air, power, storm, the 3 emergencies
-server/index.ts     socket plumbing + the voice proxy
-shared/             types and copy, imported by both sides
-src/roles/          one file per console
+server/game.ts       the whole simulation — air, power, storm, the 3 emergencies
+server/index.ts      socket plumbing + the voice proxy
+shared/              types and copy, imported by both sides
+src/roles/           one file per console
 src/components/      SVG instruments: air gauge, storm scope, power cells
-scripts/playtest.ts headless balance harness
+scripts/asymmetry.ts asserts Vega is cut off and each seat sees only its own thing
+scripts/playtest.ts  headless balance harness
 ```
 
-## Playtest the balance
+## Check it still works
+
+```bash
+npm run check
+```
+
+Typecheck, lint, then the two harnesses below. Worth running before you present.
+
+### Is the asymmetry intact?
+
+```bash
+npm run asymmetry
+```
+
+Asserts the rule the whole game rests on: the ship's voice never routes to Vega, her view contains the air and nothing else, each crew member sees only their own readout, and a signal sent from the wrong console is refused. This is a correctness check, not a tuning one — if a field leaks into her view the game quietly becomes solitaire, and that has already happened once.
+
+### Is the balance still right?
 
 ```bash
 npm run playtest

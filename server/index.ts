@@ -4,6 +4,7 @@ import { createServer } from 'node:http'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Server } from 'socket.io'
+import { hearsSpeech } from '../shared/types.ts'
 import type { ClientAction, StationId } from '../shared/types.ts'
 import { Hab, makeCode } from './game.ts'
 import type { SpeakPacket } from './game.ts'
@@ -61,8 +62,7 @@ function bind(hab: Hab) {
     },
     onSpeak: (packet: SpeakPacket) => {
       for (const p of hab.players.values()) {
-        // Vega never receives audio. That is the whole game.
-        if (!p.socketId || p.role === 'vega' || !p.role) continue
+        if (!p.socketId || !hearsSpeech(p.role)) continue
         io.to(p.socketId).emit('speak', packet)
       }
     },

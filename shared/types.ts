@@ -9,6 +9,17 @@ export type CrewId = (typeof CREW_IDS)[number]
 export const VALVES = ['port', 'starboard'] as const
 export type ValveId = (typeof VALVES)[number]
 
+/**
+ * Vega never receives audio. That is the whole game, so it is one predicate that
+ * the server routes every spoken line through rather than a condition inlined at
+ * the send site. Unseated players and the spectator board stay silent too: the
+ * board is meant to sit on the table, and hearing the ship from an empty seat
+ * would leak the crew's job to the room.
+ */
+export function hearsSpeech(role: StationId | null): boolean {
+  return role !== null && role !== 'vega' && role !== 'board'
+}
+
 export type SignalId =
   | 'pump-off'
   | 'pump-on'

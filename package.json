@@ -11,6 +11,8 @@
     "start": "NODE_ENV=production tsx server/index.ts",
     "typecheck": "tsc -b",
     "playtest": "tsx scripts/playtest.ts",
+    "asymmetry": "tsx scripts/asymmetry.ts",
+    "check": "npm run typecheck && npm run lint && npm run asymmetry && npm run playtest",
     "lint": "oxlint"
   },
   "dependencies": {
