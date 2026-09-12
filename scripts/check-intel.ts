@@ -88,8 +88,13 @@ console.log("cascade ripple ok");
   console.log("kit trade ok");
 }
 
-{
+async function checkRadioFallback() {
   const line = await grokLine("mission_control", "Ares Habitat, check your boards.");
   assert(line === null, "without AI keys grokLine must return null so hardcoded radio still plays");
   console.log("radio fallback ok");
 }
+
+checkRadioFallback().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

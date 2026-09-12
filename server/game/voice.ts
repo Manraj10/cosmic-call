@@ -74,12 +74,14 @@ export async function radioVoiceResponse(text: string, secrets: VoiceSecrets = {
   if (!voiceKey(secrets)) return new Response("no voice", { status: 404 });
   const mpeg = await synthesizeMpeg(clip, secrets);
   if (!mpeg) return new Response("voice failed", { status: 404 });
-  return new Response(mpeg, {
+  const copy = new ArrayBuffer(mpeg.byteLength);
+  new Uint8Array(copy).set(mpeg);
+  return new Response(copy, {
     status: 200,
     headers: {
       "content-type": "audio/mpeg",
       "cache-control": "public, max-age=120",
-      "content-length": String(mpeg.byteLength),
+      "content-length": String(copy.byteLength),
     },
   });
 }
