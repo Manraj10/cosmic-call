@@ -20,7 +20,8 @@ async function send(sid, event, data) {
 }
 
 function pick(messages, event) {
-  return (messages || []).find((m) => m.event === event)?.data;
+  const hits = (messages || []).filter((m) => m.event === event);
+  return hits.at(-1)?.data;
 }
 
 const a = await hello();
