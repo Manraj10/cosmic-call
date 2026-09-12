@@ -36,6 +36,11 @@ function pick<T>(rng: Rng, items: readonly T[]): T {
   return items[Math.floor(rng() * items.length)]!
 }
 
+function clock(seconds: number): string {
+  const t = Math.max(0, Math.ceil(seconds))
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`
+}
+
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n))
 }
@@ -120,6 +125,7 @@ export class Hab {
   private lastAckedFrom: CrewId | null = null
   /** Rook's unique tell — the number, not the reason. */
   private busDraw = 0.1
+  private gripes: Partial<Record<StationId, { text: string; until: number }>> = {}
   private outcome: Outcome | null = null
   private loseReason: string | null = null
   private seq = 1
@@ -214,7 +220,7 @@ export class Hab {
     this.seams = 0
     this.seamBlown = false
     this.alarms = ['HAB-7 IN THE DUST CORRIDOR', 'PLANT IS LIVE']
-    this.speak('Ninety seconds. Talk to each other. She cannot hear a word of it.', 'astronaut')
+    this.speak('Ninety seconds. Talk to each other. Send her a picture.', 'astronaut')
     this.listener?.onView()
     this.tickTimer = setInterval(() => this.tick(0.1), 100)
   }
@@ -447,12 +453,25 @@ export class Hab {
     switch (action.type) {
       case 'valve':
         this.valves[action.valve] = action.sealed ? 'sealed' : 'open'
+        if (action.sealed && VALVES.every((v) => this.valves[v] === 'sealed')) {
+          this.gripe('vega', 'INTAKE IS DEAD. YOU SEALED THE FEED.')
+          this.gripe('engineer', 'NO FEED. THE PUMP IS SPINNING ON NOTHING.')
+        }
         break
       case 'pump':
         this.pumpOn = action.on
+        if (action.on) this.gripe('engineer', 'SHE LIT THE PUMP. THAT DRAW WAS YOURS.')
+        else {
+          this.gripe('vega', 'THEY KILLED YOUR AIR.')
+          if (this.stormEta != null || this.stormActive) {
+            this.gripe('pilot', 'GOOD. THE BUS IS FREE. SHIELDS. NOW.')
+          }
+        }
         break
       case 'shields':
         this.shieldsOn = action.on
+        if (action.on) this.gripe('engineer', 'SHIELDS TOOK THE BUS. POWER IS THEIRS NOW.')
+        else this.gripe('pilot', 'SHE DROPPED THE SHIELDS.')
         break
       case 'brace':
         this.bracedAt = this.elapsed
@@ -486,6 +505,91 @@ export class Hab {
 
   private alarm(line: string) {
     this.alarms = [...this.alarms.slice(-9), line]
+  }
+
+  private gripe(who: StationId, text: string) {
+    this.gripes[who] = { text, until: this.elapsed + 5.5 }
+  }
+
+  private gripeLine(who: StationId): string | null {
+    const g = this.gripes[who]
+    if (!g || this.elapsed > g.until) return null
+    return g.text
+  }
+
+  /**
+   * Per-seat orders, written to contradict each other on purpose. Rook will be
+   * told to kill the pump in the same second Vega is told absolutely not.
+   * Naming the other person's number here would let them skip the argument.
+   */
+  private orderFor(role: StationId): { text: string; tone: 'fight' | 'warn' } | null {
+    if (this.phase !== 'play') return null
+    const runaway = this.elapsed < this.runawayUntil
+    const leaking = VALVES.filter((v) => this.leaks[v] && this.valves[v] !== 'sealed')
+    const air = this.air
+    const power = this.power
+    const eta = this.stormEta
+    const fresh = this.signals.filter((s) => s.fresh).at(-1)
+
+    if (role === 'vega') {
+      if (fresh?.signal === 'pump-off' && air < 92) {
+        return { text: 'THEY WANT THE PUMP OFF. YOUR AIR SAYS ABSOLUTELY NOT.', tone: 'fight' }
+      }
+      // During the runaway the needle climbs and looks like good news. Rook is
+      // being told to kill the same pump. That is the fight.
+      if (runaway && this.pumpOn && air < 92) {
+        return { text: 'AIR IS CLIMBING. THAT LOOKS FINE. KEEP THE PUMP.', tone: 'fight' }
+      }
+      if (air >= 92) return { text: 'TOO MUCH AIR — KILL THE PUMP OR IT SPLITS', tone: 'fight' }
+      if (air < 40 && !this.pumpOn) return { text: 'ABSOLUTELY NOT. START THE PUMP.', tone: 'fight' }
+      if (air < 48) return { text: 'AIR IS MINE. KEEP THE PUMP ON.', tone: 'fight' }
+      if (fresh) return { text: 'A PICTURE JUST HIT. THAT IS THE ORDER.', tone: 'warn' }
+      return null
+    }
+
+    if (role === 'engineer') {
+      if (runaway && this.pumpOn) {
+        return { text: `POWER ${Math.round(power)}% — TURN OFF THE PUMP. TEN SECONDS.`, tone: 'fight' }
+      }
+      if (this.stormActive && this.pumpOn) {
+        return { text: `POWER ${Math.round(power)}% — THE PUMP IS STEALING THE BUS.`, tone: 'fight' }
+      }
+      if (eta != null && !this.stormActive && this.pumpOn && power < 62) {
+        return { text: `POWER ${Math.round(power)}% — KILL THE PUMP. SOMETHING ELSE NEEDS THIS DRAW.`, tone: 'fight' }
+      }
+      if (this.shieldsOn && power < 28) {
+        return { text: `POWER ${Math.round(power)}% — SHIELDS ARE EATING YOU ALIVE.`, tone: 'fight' }
+      }
+      if (power < 22) return { text: `POWER ${Math.round(power)}% — DUMP SOMETHING.`, tone: 'warn' }
+      return null
+    }
+
+    if (role === 'pilot') {
+      if (eta != null && !this.stormActive && eta <= 6) {
+        return { text: `DUST STORM IN ${clock(eta)} — BRACE. IGNORE THE PUMP.`, tone: 'fight' }
+      }
+      if (eta != null && !this.stormActive) {
+        return { text: `DUST STORM IN ${clock(eta)} — SHIELDS UP. TAKE THE BUS.`, tone: 'fight' }
+      }
+      if (this.stormActive && this.pumpOn) {
+        return { text: 'THE PUMP IS FEEDING THE STORM. I NEED IT OFF.', tone: 'fight' }
+      }
+      if (this.stormActive && !this.shieldsOn) {
+        return { text: 'SHIELDS ARE DOWN. WE ARE OPEN.', tone: 'fight' }
+      }
+      return null
+    }
+
+    if (role === 'sparks') {
+      if (leaking.length) {
+        const which = leaking[0] === 'port' ? 'PORT' : 'STARBOARD'
+        return { text: `${which} IS BLEEDING. SEAL IT. DO NOT WAIT.`, tone: 'fight' }
+      }
+      if (this.seams > 0) return { text: 'A SEAM ALREADY BLEW. STOP OVERFILLING.', tone: 'warn' }
+      return null
+    }
+
+    return null
   }
 
   private speak(text: string, voice: 'astronaut' | 'system') {
@@ -556,6 +660,8 @@ export class Hab {
       signalCooldownMs: null,
       lastSignal: null,
       ackAgeMs: null,
+      order: null,
+      gripe: null,
       outcome: this.outcome,
       loseReason: this.loseReason,
       spectator: null,
@@ -576,6 +682,8 @@ export class Hab {
         shieldsOn: this.shieldsOn,
         braced: this.elapsed - this.bracedAt <= BRACE_WINDOW_SECONDS,
         signals: this.signals,
+        order: this.orderFor('vega'),
+        gripe: this.gripeLine('vega'),
       }
     }
 
@@ -592,6 +700,8 @@ export class Hab {
         signalCooldownMs: cooldown,
         lastSignal: this.lastSignalBy.engineer,
         ackAgeMs: ackFor('engineer'),
+        order: this.orderFor('engineer'),
+        gripe: this.gripeLine('engineer'),
       }
     }
 
@@ -603,6 +713,8 @@ export class Hab {
         signalCooldownMs: cooldown,
         lastSignal: this.lastSignalBy.pilot,
         ackAgeMs: ackFor('pilot'),
+        order: this.orderFor('pilot'),
+        gripe: this.gripeLine('pilot'),
       }
     }
 
@@ -613,6 +725,8 @@ export class Hab {
         signalCooldownMs: cooldown,
         lastSignal: this.lastSignalBy.sparks,
         ackAgeMs: ackFor('sparks'),
+        order: this.orderFor('sparks'),
+        gripe: this.gripeLine('sparks'),
       }
     }
 

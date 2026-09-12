@@ -2,7 +2,7 @@
 
 ## The one-liner
 
-> **Keep Talking and Nobody Explodes — except the person holding the bomb can't hear you.**
+> **Keep Talking and Nobody Explodes — except power tells oxygen to kill the pump, oxygen says absolutely not, and the only order that counts is a picture slamming the glass.**
 
 Use that first. Every judge knows the reference, and it does 80% of the explaining for free.
 
@@ -70,13 +70,13 @@ Ending on an invitation gets judges out of their chairs, which is worth more tha
 
 Casting:
 - **You are Rook.** The pump runaway is the clearest beat to narrate, and `PUMP OFF` is on your console and nobody else's.
-- **A friend is Vega**, earplugs in, visibly not reacting when the room shouts. That silence is the pitch.
+- **A friend is Vega.** When you press PUMP OFF a picture of the dead pump slams their entire phone. That hit is the pitch. You do not need earplugs.
 - **One judge or teammate is Chen** on the alarm log, if you want a third phone — hand them the valve leak and let them discover that only they can call it.
 
 Before you present:
 - Every phone on the same hotspot, not venue Wi‑Fi.
 - One laptop runs the server. Confirm `curl localhost:43128/api/health` first.
-- Volume up on the hearing phones. Vega's on silent.
+- Volume up on the crew phones. Vega is watching the glass.
 - Have the round already in the lobby with seats claimed, so you launch on the first sentence.
 - Refresh gives you a new round in about two seconds if a demo goes wrong.
 

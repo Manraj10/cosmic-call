@@ -60,9 +60,10 @@ export function Lobby(props: {
           onClick={() => void pick(mine === 'vega' ? null : 'vega')}
         >
           <img className="badge" src={ART.vega} alt="" style={{ objectFit: 'cover' }} />
-          <span className="name">{VEGA_META.callsign} — the hands</span>
+          <span className="name">{VEGA_META.callsign} — oxygen</span>
           <span className="desc">
-            Deaf. Every control on the ship. The only one who can see the air.
+            Every control. The only air gauge. Their pictures will tell you to kill the pump. Your
+            number will say no.
           </span>
         </button>
 
@@ -105,8 +106,8 @@ export function Lobby(props: {
         </div>
       ) : mine && mine !== 'board' ? (
         <div className="brief">
-          The ship will not tell you what broke. Ask the other two what they see, then send Vega
-          one icon. She cannot hear any of this, and all three of you share one cooldown.
+          Your alert will contradict theirs. Ask what they see, then send Vega a picture — it slams
+          her glass. All three of you share one cooldown, so a selfish press costs everyone.
           <div className="honor">{CREW_JOB[mine]}</div>
         </div>
       ) : null}

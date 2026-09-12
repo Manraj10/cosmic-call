@@ -77,6 +77,9 @@ for (const [field, value] of hiddenFromVega) {
 }
 if (v.alarms.length) problems.push('Vega can read the alarm log')
 if (v.air == null) problems.push('Vega cannot see the air, which is the one thing she needs')
+if (v.order && /port|starboard|storm|t-\d|power \d/i.test(v.order.text)) {
+  problems.push(`Vega's order leaked someone else's fact: "${v.order.text}"`)
+}
 
 // --- and what each crew member is allowed to know ---
 const rook = view('engineer')
@@ -142,6 +145,31 @@ for (const [signal, owner] of Object.entries(SIGNAL_OWNER) as [SignalId, (typeof
     if (other === owner) continue
     const stolen = hab.applyAction(other, { type: 'signal', signal })
     if (!stolen) problems.push(`${other} was allowed to send ${signal}`)
+  }
+}
+
+// Same second, opposite orders. If these two ever agree the fight is dead.
+{
+  const fight = new Hab(
+    'FIGHT',
+    { id: 'vega', name: 'Vega', role: null, ready: false, connected: true, host: true, socketId: 's' },
+    7,
+  )
+  fight.claim('vega', 'vega')
+  fight.setReady('vega', true)
+  for (const c of CREW_IDS) seat(fight, c)
+  fight.listener = { onView: () => {}, onSpeak: () => {} }
+  fight.start('vega')
+  const clock = fight as unknown as { tick: (dt: number) => void }
+  for (let i = 0; i < 270; i++) clock.tick(0.1)
+  fight.stopClock()
+  const vegaYell = fight.viewFor('vega')?.order?.text ?? ''
+  const rookYell = fight.viewFor('engineer')?.order?.text ?? ''
+  if (!/ABSOLUTELY NOT|KEEP THE PUMP|LOOKS FINE|AIR IS MINE/i.test(vegaYell)) {
+    problems.push(`Vega was not told to defend the pump during the runaway: "${vegaYell}"`)
+  }
+  if (!/TURN OFF THE PUMP|KILL THE PUMP/i.test(rookYell)) {
+    problems.push(`Rook was not told to kill the pump during the runaway: "${rookYell}"`)
   }
 }
 

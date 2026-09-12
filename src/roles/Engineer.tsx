@@ -1,5 +1,6 @@
 import { CREW_META } from '@shared/content'
 import type { ClientView } from '@shared/types'
+import { Demand } from '../components/Demand'
 import { Frame } from '../components/Frame'
 import { PowerCells } from '../components/PowerCells'
 import { SignalPad } from '../components/SignalPad'
@@ -11,7 +12,8 @@ export function Engineer({ view }: { view: ClientView }) {
   const load = draw >= 1.2 ? 'spiking' : draw >= 0.6 ? 'heavy' : 'quiet'
 
   return (
-    <Frame who={CREW_META.engineer.callsign} tag="only you see the reactor" timeLeft={view.timeLeft}>
+    <Frame who={CREW_META.engineer.callsign} tag="power — only you see the reactor" timeLeft={view.timeLeft}>
+      <Demand view={view} />
       <div className="readout">
         <div className="label">reactor power</div>
         <div className={`value ${tone}`}>

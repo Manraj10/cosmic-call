@@ -1,4 +1,4 @@
-import { SIGNAL_COOLDOWN_MS, signalLabel, signalsFor } from '@shared/content'
+import { SIGNAL_COOLDOWN_MS, signalArt, signalLabel, signalsFor } from '@shared/content'
 import type { ClientView, CrewId } from '@shared/types'
 import { sendAction } from '../net'
 
@@ -20,7 +20,7 @@ export function SignalPad({ view, crew }: { view: ClientView; crew: CrewId }) {
       <div className="tag" style={{ textAlign: 'center' }}>
         {locked
           ? `pad resetting — ${(cd / 1000).toFixed(1)}s`
-          : 'only you can send these two'}
+          : 'these two pictures slam her glass'}
       </div>
       <div className="cooldown">
         <i style={{ width: `${pct}%` }} />
@@ -33,7 +33,7 @@ export function SignalPad({ view, crew }: { view: ClientView; crew: CrewId }) {
             disabled={locked}
             onClick={() => void sendAction({ type: 'signal', signal: s.id })}
           >
-            <span className="mark">{s.mark}</span>
+            <img className="thumb" src={signalArt(s.id)} alt="" />
             <span className="name">{s.label}</span>
             <span className="why">{s.hint}</span>
           </button>

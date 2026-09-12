@@ -1,9 +1,9 @@
 import type { CrewId, RoleId, SignalId, StationId } from './types.ts'
 
 export const CREW_JOB: Record<CrewId, string> = {
-  engineer: 'The pump is yours. Kill it to buy her shields, start it to buy her air.',
-  pilot: 'The storm is yours. Shields up early, brace on the beat.',
-  sparks: 'The leak is yours. Nobody else can see which valve is bleeding.',
+  engineer: 'Power is yours. Kill the pump when the draw spikes. Vega will hate you for it.',
+  pilot: 'Navigation is yours. Shields eat Rook\'s bus. Take it anyway before the front lands.',
+  sparks: 'Communications is yours. Seal the leak. That also starves the pump. They will shout.',
 }
 
 export const MISSION_SECONDS = 90
@@ -18,9 +18,9 @@ export const VEGA_META = {
   title: 'Vega',
   seat: 'In the air plant',
   constraint: 'Cannot hear anything',
-  honor: 'Silence your phone. Earplugs are better. Shout the air number — they cannot see it.',
+  honor: 'You are oxygen. Watch the glass. When they need something they will send a picture — and it will often be the opposite of what your air says.',
   blurb:
-    'You are the only one who can touch the ship. You are also the only one who can see how much air is left. You will not hear the alarm, the ship, or three people screaming your name. Say the number out loud.',
+    'You have every control and the only air gauge. Rook will tell you to kill the pump. Your number will say absolutely not. Both of you are right. Say the air out loud.',
   accent: '#3ee0ff',
 } as const
 
@@ -33,7 +33,7 @@ export const CREW_META: Record<
     title: 'Rook',
     sees: 'Reactor power',
     blurb:
-      'You are the only one who can see the reactor. If the draw spikes, say it. Nobody else will know.',
+      'You are power. When the draw spikes, scream to kill the pump. Vega will refuse. Idris will want that same bus for shields.',
     accent: '#ffb020',
   },
   pilot: {
@@ -41,7 +41,7 @@ export const CREW_META: Record<
     title: 'Idris',
     sees: 'Dust storm clock',
     blurb:
-      'You are the only one who can see the storm coming. Say the number. Nobody else has a clock.',
+      'You are navigation. The storm is only on your scope. Taking shields will make Rook lose his mind. Take them anyway.',
     accent: '#ff6a22',
   },
   sparks: {
@@ -49,7 +49,7 @@ export const CREW_META: Record<
     title: 'Chen',
     sees: 'Alarm log',
     blurb:
-      'You are the only one who can see which valve is bleeding. Say port or starboard. The others cannot see the log.',
+      'You are communications. You see what broke. Sealing a leak starves the pump. They will blame you for the air.',
     accent: '#5cff9d',
   },
 }
@@ -62,10 +62,10 @@ export const ROLE_TITLE: Record<RoleId, string> = {
 }
 
 export const STATION_META: Record<StationId, { title: string; constraint: string }> = {
-  vega: { title: 'Vega — the hands', constraint: 'Deaf. Every control.' },
+  vega: { title: 'Vega — oxygen', constraint: 'Every control. Pictures slam the glass.' },
   engineer: { title: 'Rook — power', constraint: 'Sees the reactor' },
-  pilot: { title: 'Idris — storm', constraint: 'Sees the clock' },
-  sparks: { title: 'Chen — alarms', constraint: 'Sees what broke' },
+  pilot: { title: 'Idris — navigation', constraint: 'Sees the storm clock' },
+  sparks: { title: 'Chen — communications', constraint: 'Sees what broke' },
   board: { title: 'Hab monitor', constraint: 'Spectator / camera view' },
 }
 
@@ -145,4 +145,9 @@ export function signalLabel(id: SignalId): string {
 
 export function signalMark(id: SignalId): string {
   return SIGNALS.find((s) => s.id === id)?.mark ?? '?'
+}
+
+/** The picture that slams Vega's glass. Same plate the crew press. */
+export function signalArt(id: SignalId): string {
+  return `/art/sig-${id}.webp`
 }

@@ -1,8 +1,8 @@
 # CROSSTALK
 
-**Three of you can see what's going wrong. One of you has the only hands on the ship — and she can't hear a word you say.**
+**Four phones. Four opposite alerts. Power tells oxygen to kill the pump. Oxygen says absolutely not.**
 
-A 90-second, same-table party game for 4 phones. Like *Keep Talking and Nobody Explodes*, except the person holding the bomb is deaf.
+A 90-second, same-table party game for 4 phones. Like *Keep Talking and Nobody Explodes*, except you cannot shout the answer at the person holding the bomb. You send them a picture.
 
 <img alt="Crosstalk" src="public/art/hero-hab.webp" width="640" />
 
@@ -10,16 +10,18 @@ A 90-second, same-table party game for 4 phones. Like *Keep Talking and Nobody E
 
 Each of the four astronauts can perceive exactly one thing, and nobody else can see it:
 
-| Astronaut | Sees | Can send |
-|---|---|---|
-| **Vega** | Cabin air % | Nothing. She has **every control on the ship** and hears nothing, ever |
-| **Rook** | Reactor power % | `PUMP OFF` · `PUMP ON` |
-| **Idris** | Dust-storm countdown | `SHIELDS` · `BRACE` |
-| **Chen** | Alarm log (what just broke) | `SEAL PORT` · `SEAL STBD` |
+| Seat | Station | Sees | Can send |
+|---|---|---|---|
+| **Vega** | Oxygen | Cabin air % | Nothing. Every control. Pictures slam the glass |
+| **Rook** | Power | Reactor % | `PUMP OFF` · `PUMP ON` |
+| **Idris** | Navigation | Storm clock | `SHIELDS` · `BRACE` |
+| **Chen** | Communications | Alarm log | `SEAL PORT` · `SEAL STBD` |
 
-Rook, Idris and Chen can shout across the table all they like. **They have to.** The ship will not name what broke, and nobody's screen carries anyone else's number. Vega cannot hear any of it. The only thing that reaches her is the **signal pad** — and every icon on it is welded to exactly one console. Chen is the only person alive who can tell Vega which valve is bleeding. Rook is the only one who can see the reactor draw spike. Idris is the only one who can see the storm clock. All three share one 4-second cooldown, so a wasted press is wasted for everybody.
+Rook, Idris and Chen can shout across the table all they like. **They have to** — at each other. The ship will not name what broke, and nobody's screen carries anyone else's number. The only thing that officially reaches Vega is a **picture slamming their glass**, and every picture is welded to exactly one console. Chen is the only person alive who can send the leaking valve. Rook is the only one who can see the reactor draw spike. Idris is the only one who can see the storm clock. All three share one 4-second cooldown, so a wasted press is wasted for everybody.
 
-So the game is: diagnose out loud, work out whose call it is, then compress it into one icon before the air runs out.
+You do not need earplugs. People will hear the table anyway. The pictures are the channel so the game still works in a noisy room.
+
+So the game is: diagnose out loud, work out whose call it is, then fire one picture at Vega before the air runs out.
 
 Three emergencies hit in 90 seconds — a valve leak, a pump runaway, and a dust storm — and Vega can't perceive any of them on her own. **There is one order that survives all three.** Any seat that goes quiet kills the hab: the harness in `scripts/playtest.ts` asserts it.
 
@@ -54,9 +56,9 @@ Empty seats are covered by the sim, so you can test alone or with two.
 
 ### Three house rules
 
-The software enforces most of the asymmetry — Vega's client is never sent audio, and the crew have no text input to her. These three are on you:
+The software enforces the channel — Vega's client is never sent the ship's voice, and the crew have no text input to her. These three are on you:
 
-- **Vega silences her phone.** Earplugs or noise-cancelling headphones are better. Half-hearing the table ruins the round.
+- **Watch the glass, not the table.** The official order is the picture, even if you can hear people shouting.
 - Nobody hands Vega their phone.
 - Everyone gets a turn as Vega.
 

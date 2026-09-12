@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { CREW_META } from '@shared/content'
 import type { ClientView } from '@shared/types'
+import { Demand } from '../components/Demand'
 import { Frame } from '../components/Frame'
 import { SignalPad } from '../components/SignalPad'
 
@@ -13,7 +14,8 @@ export function Sparks({ view }: { view: ClientView }) {
   }, [lines.length])
 
   return (
-    <Frame who={CREW_META.sparks.callsign} tag="only you see what broke" timeLeft={view.timeLeft}>
+    <Frame who={CREW_META.sparks.callsign} tag="communications — only you see what broke" timeLeft={view.timeLeft}>
+      <Demand view={view} />
       <div className="readout fill" style={{ paddingBottom: 12 }}>
         <div className="label">alarm log</div>
         <div className="log" style={{ marginTop: 10, textAlign: 'left' }}>

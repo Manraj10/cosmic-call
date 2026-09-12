@@ -1,44 +1,23 @@
-import { useEffect, useRef } from 'react'
-import { VEGA_META, signalLabel, signalMark } from '@shared/content'
+import { VEGA_META } from '@shared/content'
 import type { ClientView, ValveId } from '@shared/types'
 import { AirGauge } from '../components/AirGauge'
+import { Demand } from '../components/Demand'
 import { Frame } from '../components/Frame'
+import { IncomingSlam } from '../components/IncomingSlam'
 import { buzz } from '../haptics'
 import { sendAction } from '../net'
 
 export function Vega({ view }: { view: ClientView }) {
   const air = view.air ?? 0
   const band = view.airBand ?? 'ok'
-  const fresh = view.signals.filter((s) => s.fresh)
-  const latest = fresh.at(-1)
-  const lastBuzzed = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (latest && lastBuzzed.current !== latest.id) {
-      lastBuzzed.current = latest.id
-      buzz([90, 60, 90, 60, 220])
-    }
-  }, [latest])
-
+  const waiting = view.signals.some((s) => s.fresh)
   const danger = band === 'critical' || band === 'over'
 
   return (
-    <Frame who={VEGA_META.callsign} tag="you cannot hear anything" timeLeft={null} strobe={danger}>
-      {latest ? (
-        <div className="incoming">
-          <div className="tag">signal from the crew</div>
-          <div className="mark">{signalMark(latest.signal)}</div>
-          <div className="what">{signalLabel(latest.signal)}</div>
-          {fresh.length > 1 ? (
-            <div className="tag">+{fresh.length - 1} more waiting</div>
-          ) : null}
-          <button className="ack" onClick={() => void sendAction({ type: 'clear-signals' })}>
-            got it
-          </button>
-        </div>
-      ) : (
-        <div className="silent-note">no signal — you are on your own</div>
-      )}
+    <Frame who={VEGA_META.callsign} tag="oxygen — pictures slam the glass" timeLeft={null} strobe={danger}>
+      <IncomingSlam view={view} />
+      <Demand view={view} />
+      {waiting ? null : <div className="silent-note">no picture yet — you are on your own</div>}
 
       <div className="readout">
         <div className="label">cabin air</div>

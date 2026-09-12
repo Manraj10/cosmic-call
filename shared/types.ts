@@ -92,6 +92,14 @@ export interface ClientView {
   /** Only the sender sees her ack. Everyone else has to ask. */
   ackAgeMs: number | null
 
+  /**
+   * What THIS seat is being told to do right now. Computed per role so two
+   * phones can scream opposite orders at the same second — that is the fight.
+   */
+  order: { text: string; tone: 'fight' | 'warn' } | null
+  /** Someone just spent a resource this seat owns. Lasts a few seconds. */
+  gripe: string | null
+
   outcome: Outcome | null
   loseReason: string | null
   /** Spectator board only. */

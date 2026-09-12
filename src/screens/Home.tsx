@@ -34,8 +34,8 @@ export function Home(props: {
         <div className="tag">four astronauts · one dust storm · 90 seconds</div>
         <h1>CROSSTALK</h1>
         <p className="pitch">
-          Three of you can see what is going wrong. <em>One of you has the only hands on the ship
-          — and she cannot hear a word you say.</em>
+          Four phones. Four opposite alerts. <em>Power will tell oxygen to kill the pump. Oxygen
+          will say absolutely not. A picture slams the glass anyway.</em>
         </p>
       </div>
 
@@ -79,7 +79,7 @@ export function Home(props: {
       {props.error ? <div className="notice">{props.error}</div> : null}
 
       <div className="tag" style={{ textAlign: 'center', lineHeight: 1.7 }}>
-        everyone in the same room · phones off silent except Vega
+        everyone in the same room · they send pictures, Vega shouts the air
       </div>
     </div>
   )

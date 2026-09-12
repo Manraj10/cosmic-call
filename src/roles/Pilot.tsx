@@ -1,5 +1,6 @@
 import { CREW_META } from '@shared/content'
 import type { ClientView } from '@shared/types'
+import { Demand } from '../components/Demand'
 import { Frame } from '../components/Frame'
 import { SignalPad } from '../components/SignalPad'
 import { StormScope } from '../components/StormScope'
@@ -9,7 +10,8 @@ export function Pilot({ view }: { view: ClientView }) {
   const imminent = eta != null && eta <= 6
 
   return (
-    <Frame who={CREW_META.pilot.callsign} tag="only you see the storm" timeLeft={view.timeLeft}>
+    <Frame who={CREW_META.pilot.callsign} tag="navigation — only you see the storm" timeLeft={view.timeLeft}>
+      <Demand view={view} />
       <div className="readout">
         <div className="label">dust front</div>
         <div className={`value ${view.stormActive ? 'v-danger' : imminent ? 'v-danger' : 'v-storm'}`}>

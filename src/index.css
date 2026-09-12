@@ -96,6 +96,45 @@ input {
   flex: 1;
 }
 
+/* ---------- conflicting orders ---------- */
+
+.demand {
+  border: 2px solid var(--danger);
+  background: #2a0c08;
+  padding: 10px 12px;
+  text-align: center;
+  animation: pulse 0.7s steps(2, end) infinite;
+}
+
+.demand.warn {
+  border-color: var(--power);
+  background: #2a1a08;
+  animation: none;
+}
+
+.demand.fight .yell {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  line-height: 1.25;
+  color: #ffe8e2;
+}
+
+.demand.warn .yell {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--power);
+}
+
+.demand .gripe {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffb8a8;
+  margin-bottom: 4px;
+}
+
 /* ---------- big readouts ---------- */
 
 .readout {
@@ -311,12 +350,16 @@ input {
 }
 
 .pad.owned .sig {
-  min-height: 118px;
-  padding: 14px 10px;
+  min-height: 0;
+  padding: 8px;
 }
 
-.pad.owned .sig .mark {
-  font-size: 34px;
+.sig .thumb {
+  width: 100%;
+  aspect-ratio: 1.2;
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid var(--line);
 }
 
 .pad.owned .sig .name {
@@ -372,37 +415,98 @@ input {
   font-weight: 700;
 }
 
-/* ---------- incoming signal on Vega's glass ---------- */
+/* ---------- a picture flying at Vega's glass ---------- */
 
-.incoming {
-  border: 3px solid var(--air);
-  background: #08222b;
-  border-radius: 4px;
-  padding: 18px 14px;
-  text-align: center;
-  animation: flashbox 0.5s steps(2, end) infinite;
+.slam {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  perspective: 900px;
+  background: rgba(8, 5, 4, 0.72);
+  animation: slamflash 0.16s steps(2) 5;
 }
 
-.incoming .mark {
-  font-size: 54px;
+.slam-plate {
+  position: absolute;
+  top: 7%;
+  left: 5%;
+  right: 5%;
+  bottom: 26%;
+  width: auto;
+  object-fit: cover;
+  border-radius: 6px;
+  box-shadow: 0 0 0 3px var(--air), 0 24px 70px #000;
+  animation: slam-in 0.48s cubic-bezier(0.12, 0.82, 0.22, 1.05) both;
+}
+
+.slam-dir {
+  position: absolute;
+  top: 18%;
+  font-size: 72px;
   line-height: 1;
+  color: #fff;
+  text-shadow: 0 4px 18px #000;
+  animation: slam-in 0.48s cubic-bezier(0.12, 0.82, 0.22, 1.05) both;
+  pointer-events: none;
 }
 
-.incoming .what {
+.slam-dir.left {
+  left: 8%;
+}
+
+.slam-dir.right {
+  right: 8%;
+}
+
+.slam-caption {
+  position: relative;
+  z-index: 1;
+  padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+  text-align: center;
+  background: linear-gradient(transparent, #0d0906 28%);
+}
+
+.slam-caption .what {
   font-size: 28px;
   font-weight: 800;
-  letter-spacing: 0.04em;
-  margin-top: 4px;
+  letter-spacing: 0.06em;
 }
 
-.incoming .ack {
-  margin-top: 12px;
+.slam .ack {
+  margin-top: 10px;
   border: 2px solid var(--air);
-  padding: 12px;
+  padding: 14px;
   width: 100%;
   font-weight: 800;
-  letter-spacing: 0.12em;
-  color: var(--air);
+  letter-spacing: 0.14em;
+  color: #08222b;
+  background: var(--air);
+}
+
+@keyframes slam-in {
+  0% {
+    transform: translateZ(-520px) scale(0.22);
+    filter: blur(10px);
+    opacity: 0;
+  }
+  72% {
+    transform: translateZ(18px) scale(1.04);
+    filter: blur(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateZ(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes slamflash {
+  50% {
+    background: rgba(40, 16, 8, 0.55);
+  }
 }
 
 @keyframes flashbox {
