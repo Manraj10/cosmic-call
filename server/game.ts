@@ -9,10 +9,10 @@ import {
   signalSendsTo,
 } from '../shared/content.ts'
 import {
+  MODULES,
   MODULE_SHORT,
   TOKEN_HOME,
   moduleFor,
-  neighbours,
   walkSeconds,
   type ModuleId,
 } from '../shared/habitat.ts'
@@ -740,12 +740,19 @@ export class Hab {
     }
 
     if (role !== 'vega') return 'Only Vega can touch the ship'
+
+    // Brace is body-tightening, not a bolted control — works in the corridor.
+    if (action.type === 'brace') {
+      this.obeyCheck(action)
+      this.bracedAt = this.elapsed
+      this.listener?.onView()
+      return null
+    }
+
     if (this.walkingTo) return 'Still moving — controls are dead in the corridor'
 
     if (action.type === 'walk') {
-      if (!neighbours(this.at).includes(action.to) && action.to !== this.at) {
-        return 'That module is not next to you'
-      }
+      if (!(MODULES as readonly string[]).includes(action.to)) return 'Unknown module'
       if (action.to === this.at) return null
       const trap = this.freshForgeModule()
       if (trap === action.to) this.forgeTrap = trap
@@ -816,7 +823,7 @@ export class Hab {
         else {
           this.gripe('vega', 'THEY KILLED YOUR AIR.')
           if (this.stormEta != null || this.stormActive) {
-            this.gripe('pilot', 'GOOD. THE BUS IS FREE. SHIELDS. NOW.')
+            this.gripe('pilot', 'GOOD. THE GRID IS FREE. SHIELDS. NOW.')
           }
         }
         break
@@ -825,13 +832,10 @@ export class Hab {
         const here = this.requireFixture('shields')
         if (here) return here
         this.shieldsOn = action.on
-        if (action.on) this.gripe('engineer', 'SHIELDS TOOK THE BUS. POWER IS THEIRS NOW.')
+        if (action.on) this.gripe('engineer', 'SHIELDS TOOK THE GRID. POWER IS THEIRS NOW.')
         else this.gripe('pilot', 'SHE DROPPED THE SHIELDS.')
         break
       }
-      case 'brace':
-        this.bracedAt = this.elapsed
-        break
       case 'clear-signals': {
         const latest =
           this.signals.filter((s) => s.fresh && s.seal === 'sealed').at(-1) ??
@@ -1038,7 +1042,7 @@ export class Hab {
       }
       // Reading the badge outranks everything else on her glass.
       if (fresh && fresh.seal === 'broken') {
-        return { text: 'BROKEN SEAL. NOBODY SIGNED THAT. DO NOT GO WHERE IT SENDS YOU.', tone: 'fight' }
+        return { text: 'READ THE SEAL BEFORE YOU MOVE.', tone: 'fight' }
       }
       if (fresh && fresh.seal === 'stale') {
         return { text: 'OLD COUNTER — THIS ORDER ALREADY RAN ONCE.', tone: 'fight' }
@@ -1077,7 +1081,7 @@ export class Hab {
         return { text: `POWER ${Math.round(power)}% — TURN OFF THE PUMP. TEN SECONDS.`, tone: 'fight' }
       }
       if (this.stormActive && this.pumpOn) {
-        return { text: `POWER ${Math.round(power)}% — THE PUMP IS STEALING THE BUS.`, tone: 'fight' }
+        return { text: `POWER ${Math.round(power)}% — THE PUMP IS STEALING THE GRID.`, tone: 'fight' }
       }
       if (eta != null && !this.stormActive && this.pumpOn && power < 62) {
         return { text: `POWER ${Math.round(power)}% — KILL THE PUMP. SOMETHING ELSE NEEDS THIS DRAW.`, tone: 'fight' }
@@ -1090,11 +1094,11 @@ export class Hab {
     }
 
     if (role === 'pilot') {
-      if (eta != null && !this.stormActive && eta <= 6) {
+      if (eta != null && !this.stormActive && eta <= 4) {
         return { text: `DUST STORM IN ${clock(eta)} — BRACE. IGNORE THE PUMP.`, tone: 'fight' }
       }
       if (eta != null && !this.stormActive) {
-        return { text: `DUST STORM IN ${clock(eta)} — SHIELDS UP. TAKE THE BUS.`, tone: 'fight' }
+        return { text: `DUST STORM IN ${clock(eta)} — SHIELDS UP. TAKE POWER.`, tone: 'fight' }
       }
       if (this.stormActive && this.pumpOn) {
         return { text: 'THE PUMP IS FEEDING THE STORM. I NEED IT OFF.', tone: 'fight' }
