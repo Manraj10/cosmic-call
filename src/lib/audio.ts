@@ -12,6 +12,8 @@ export class HabitatAudio {
   klaxonOsc: OscillatorNode | null = null;
   lastVoice = "";
   intensity = 0.2;
+  tts: HTMLAudioElement | null = null;
+  ttsUrl = "";
 
   ensure() {
     if (this.ctx) return;
@@ -154,6 +156,22 @@ export class HabitatAudio {
   speak(text: string) {
     if (!text || text === this.lastVoice) return;
     this.lastVoice = text;
+    void this.speakRadio(text);
+  }
+
+  private stopTts() {
+    if (this.tts) {
+      this.tts.pause();
+      this.tts.src = "";
+      this.tts = null;
+    }
+    if (this.ttsUrl) {
+      URL.revokeObjectURL(this.ttsUrl);
+      this.ttsUrl = "";
+    }
+  }
+
+  private speakBrowser(text: string) {
     try {
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
@@ -169,6 +187,47 @@ export class HabitatAudio {
     } catch {
       /* ignore */
     }
+  }
+
+  private async speakRadio(text: string) {
+    this.stopTts();
+    try {
+      window.speechSynthesis.cancel();
+    } catch {
+      /* ignore */
+    }
+    try {
+      const res = await fetch(`/radio/voice?t=${encodeURIComponent(text.slice(0, 220))}`, {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      if (this.lastVoice !== text) return;
+      const ct = res.headers.get("content-type") || "";
+      if (res.ok && ct.includes("audio")) {
+        const buf = await res.arrayBuffer();
+        if (this.lastVoice !== text) return;
+        if (buf.byteLength) {
+          const url = URL.createObjectURL(new Blob([new Uint8Array(buf)], { type: "audio/mpeg" }));
+          const audio = new Audio(url);
+          audio.volume = Math.min(1, 0.85 + this.intensity * 0.15);
+          this.tts = audio;
+          this.ttsUrl = url;
+          audio.onended = () => {
+            if (this.ttsUrl === url) this.stopTts();
+          };
+          try {
+            await audio.play();
+            return;
+          } catch {
+            this.stopTts();
+          }
+        }
+      }
+    } catch {
+      /* browser fallback */
+    }
+    if (this.lastVoice !== text) return;
+    this.speakBrowser(text);
   }
 }
 

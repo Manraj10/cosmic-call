@@ -5,6 +5,7 @@ import { GameHUD } from "@/components/GameHUD";
 import { Landing, Lobby } from "@/components/Lobby";
 import { HabitatMonitor } from "@/components/Monitor";
 import { Countdown, RoleIntro, Tutorial } from "@/components/RoleIntro";
+import { MlhTrustBadge } from "@/components/mlh";
 import { habitatAudio } from "@/lib/audio";
 import { getSocket } from "@/lib/socket";
 import { haptic } from "@/lib/utils";
@@ -123,11 +124,17 @@ export function GameApp() {
   };
 
   if (!state) {
-    return <Landing error={error} onCreate={create} onJoin={join} />;
+    return (
+      <>
+        <MlhTrustBadge />
+        <Landing error={error} onCreate={create} onJoin={join} />
+      </>
+    );
   }
 
   return (
     <>
+      {(state.phase === "lobby" || state.phase === "ended") && <MlhTrustBadge />}
       {state.phase === "lobby" && <Lobby state={state} onStart={() => emit("start")} />}
       {state.youAreMonitor && state.phase !== "lobby" && state.phase !== "ended" && (
         <HabitatMonitor state={state} clockSkew={skew} />

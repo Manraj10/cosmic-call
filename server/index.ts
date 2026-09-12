@@ -10,6 +10,7 @@ import {
   type RoomSlot,
 } from "./game/net";
 import { makeCode } from "./game/room";
+import { radioVoiceResponse, voiceKey } from "./game/voice";
 import { sendDownloadPage, sendProjectBundle, sendProjectZip } from "./pack";
 
 const dev = process.env.NODE_ENV !== "production";
@@ -36,6 +37,17 @@ function json(res: import("node:http").ServerResponse, data: unknown, status = 2
   res.end(JSON.stringify(data));
 }
 
+async function sendVoice(res: ServerResponse, text: string) {
+  const out = await radioVoiceResponse(text);
+  const body = await out.arrayBuffer();
+  if (res.headersSent) return;
+  res.writeHead(out.status, {
+    "Content-Type": out.headers.get("content-type") || (voiceKey() ? "audio/mpeg" : "text/plain"),
+    "Cache-Control": out.headers.get("cache-control") || "no-store",
+  });
+  res.end(Buffer.from(body));
+}
+
 async function handleReq(
   req: IncomingMessage,
   res: ServerResponse,
@@ -59,8 +71,18 @@ async function handleReq(
     sendProjectBundle(res);
     return;
   }
+  if (path === "/radio/voice") {
+    const url = new URL(req.url || "/", "http://local");
+    await sendVoice(res, String(url.searchParams.get("t") || url.searchParams.get("text") || ""));
+    return;
+  }
   const sync = matchSync(path);
   if (sync) {
+    if (sync.op === "voice") {
+      const url = new URL(req.url || "/", "http://local");
+      await sendVoice(res, String(url.searchParams.get("t") || url.searchParams.get("text") || ""));
+      return;
+    }
     const slot = hub(sync.code);
     const url = new URL(req.url || "/", "http://local");
     if (sync.op === "hello") {

@@ -1,5 +1,6 @@
 "use client";
 
+import { SponsorCredits } from "@/components/mlh";
 import { Button } from "@/components/ui/button";
 import type { ClientState } from "@/shared/protocol";
 
@@ -62,6 +63,7 @@ export function EndScreen({ state, onAgain }: { state: ClientState; onAgain: () 
         ) : (
           <p className="mt-8 text-center text-white/60">Waiting for mission lead to restart.</p>
         )}
+        <SponsorCredits className="mt-8 border-t border-white/10 pt-5" />
       </div>
     </div>
   );

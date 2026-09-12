@@ -1,4 +1,5 @@
 import { applyCascadeRipple, stampIncident } from "../server/game/cascade";
+import { grokLine } from "../server/game/grok";
 import { GameRoom, makeHost } from "../server/game/room";
 import { createSim } from "../server/game/simulation";
 import { createPuzzle, intelFor } from "../server/game/puzzles";
@@ -85,4 +86,10 @@ console.log("cascade ripple ok");
   assert(String(host.astro.inventory) === "repair_kit", "swap returned kit to alpha");
   room.destroy();
   console.log("kit trade ok");
+}
+
+{
+  const line = await grokLine("mission_control", "Ares Habitat, check your boards.");
+  assert(line === null, "without AI keys grokLine must return null so hardcoded radio still plays");
+  console.log("radio fallback ok");
 }

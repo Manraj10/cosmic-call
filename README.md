@@ -110,12 +110,44 @@ On a phone the **map stays on screen** with the console docked underneath. Walk 
 
 Fewer players still run every major system. Timers stretch a little, movement is faster, and the director caps overlapping emergencies. A Habitat Monitor does not receive a role.
 
-## Optional Grok
+## MLH sponsor stack
 
-If `XAI_API_KEY` or `GROK_API_KEY` is set, Mission Control lines and the post-game recap are generated with Grok. **Grok never grades math.** The engine does. Without a key, cinematic fallback copy still runs.
+This is a real in-game integration, not logo-only. The habitat still plays with **zero keys**.
+
+| Track | What the game uses |
+| --- | --- |
+| **Cloudflare** — Best AI Application Built with Cloudflare | Workers Assets + Durable Object `GameRoomDO` for rooms. **Workers AI** (`@cf/meta/llama-3.1-8b-instruct`) writes Mission Control radio copy. Binding `AI` in `wrangler.jsonc`. |
+| **ElevenLabs** — Best Use of ElevenLabs | Mission Control TTS via `GET /radio/voice?t=...` (also `GET /sync/:CODE/voice`). Audio is `audio/mpeg`. No `/api` path (workers.dev 403s those). |
+| **MLH** | Official 2026 trust badge (top-right) plus footer credits linking [mlh.io](https://mlh.io), [mlh.link/cloudflare](https://mlh.link/cloudflare), [mlh.link/elevenlabs](https://mlh.link/elevenlabs). |
+
+AI copy is **radio flavor only**. The engine grades puzzles. Models never judge math.
+
+### Env vars (all optional)
+
+```bash
+# Cloudflare Workers AI (local Node REST fallback; on Workers the AI binding is used)
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_API_TOKEN=
+
+# Fallback gen-AI if Workers AI is unset
+XAI_API_KEY=          # or GROK_API_KEY — Grok
+GEMINI_API_KEY=       # or GOOGLE_API_KEY — Gemini
+
+# ElevenLabs Mission Control voice
+ELEVENLABS_API_KEY=
+ELEVENLABS_VOICE_ID=  # optional; defaults to a stock voice
+```
+
+On Cloudflare, set the same names as Worker secrets (`wrangler secret put ELEVENLABS_API_KEY`, etc.). The `AI` binding does not need a key.
+
+**Fallback order for Mission Control copy:** Workers AI binding → Cloudflare Workers AI REST → Grok → Gemini → hardcoded NASA-flavored lines already in the game.
+
+**Voice fallback:** ElevenLabs MPEG → browser `speechSynthesis`. If `GET /radio/voice` returns 404 (no key), the client speaks locally.
 
 ## Stack
 
 - Next.js + React (player UI)
 - Authoritative HTTP radio (long-poll GET `/sync`) — Node locally, Cloudflare Durable Objects in production. WebSockets are not used; temporary `workers.dev` hosts block them.
-- Web Audio + speech synthesis for alarms / Mission Control
+- Cloudflare Workers AI for Mission Control copy, with Grok / Gemini / hardcoded fallbacks
+- ElevenLabs TTS for Mission Control, with Web Speech fallback
+- Web Audio for habitat alarms

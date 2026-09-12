@@ -867,7 +867,10 @@ export class GameRoom {
   speak(text: string) {
     this.voice = { id: newId(), text };
     void grokLine("mission_control", text).then((line) => {
-      if (line) this.voice = { id: newId(), text: line };
+      if (line && line !== this.voice?.text) {
+        this.voice = { id: newId(), text: line };
+        this.broadcast();
+      }
     });
   }
 

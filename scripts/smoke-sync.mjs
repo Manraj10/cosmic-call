@@ -69,4 +69,14 @@ function pick(messages, event) {
   console.log("OK monitor-host", code2, st.players.map((p) => p.name).join("+"), intro.phase);
 }
 
+{
+  const voice = await fetch(`${base}/radio/voice?t=${encodeURIComponent("Ares Habitat, check your boards.")}`, {
+    cache: "no-store",
+  });
+  if (voice.status !== 404 && voice.status !== 200) {
+    throw new Error(`voice expected 404 without key or 200 with ElevenLabs, got ${voice.status}`);
+  }
+  console.log("OK radio voice", voice.status, voice.headers.get("content-type") || "no-type");
+}
+
 process.exit(0);

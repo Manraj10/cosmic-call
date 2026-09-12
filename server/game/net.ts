@@ -138,12 +138,12 @@ export function dropSession(slot: RoomSlot, sid: string) {
   }
 }
 
-const SYNC = /^\/sync\/([^/]+)\/(hello|poll|in|bye)$/;
+const SYNC = /^\/sync\/([^/]+)\/(hello|poll|in|bye|voice)$/;
 
 export function matchSync(pathname: string) {
   const m = pathname.match(SYNC);
   if (!m) return null;
-  return { code: decodeURIComponent(m[1]!).toUpperCase(), op: m[2] as "hello" | "poll" | "in" | "bye" };
+  return { code: decodeURIComponent(m[1]!).toUpperCase(), op: m[2] as "hello" | "poll" | "in" | "bye" | "voice" };
 }
 
 export function readInParams(url: URL) {

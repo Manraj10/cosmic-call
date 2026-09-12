@@ -24,6 +24,9 @@
       "new_sqlite_classes": ["GameRoomDO"]
     }
   ],
+  "ai": {
+    "binding": "AI"
+  },
   "observability": {
     "enabled": true
   }
