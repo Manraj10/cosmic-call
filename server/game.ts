@@ -1,5 +1,6 @@
 import {
   BRACE_WINDOW_SECONDS,
+  CREW_META,
   MISSION_SECONDS,
   REVOKE_TARGET,
   SIGNAL_COOLDOWN_MS,
@@ -173,6 +174,8 @@ export class Hab {
    * the only thing in the round that is genuinely her fault.
    */
   private unsealedAsk: { signal: SignalId; at: number }[] = []
+  /** Sealed cards written with a stolen key — obeying these is still GHOST's win. */
+  private stolenAsk: { signal: SignalId; at: number }[] = []
 
   /** Operator body. She is the only one who moves. */
   private at: ModuleId = 'spine'
@@ -231,6 +234,11 @@ export class Hab {
     if (role && role !== 'board') {
       for (const other of this.players.values()) {
         if (other.id !== playerId && other.role === role) {
+          if (!other.connected) {
+            other.role = null
+            other.ready = false
+            continue
+          }
           return 'Somebody already took that seat'
         }
       }
@@ -264,11 +272,37 @@ export class Hab {
   }
 
   private begin() {
+    this.stopClock()
+    // A rematch reuses this Hab; reset the full simulation, not just its clock.
+    this.npcAcc = 0
+    this.valves = { port: 'open', starboard: 'open' }
+    this.leaks = { port: false, starboard: false }
+    this.pumpOn = true
+    this.shieldsOn = false
+    this.runawayUntil = -1
+    this.stormEta = null
+    this.stormActive = false
+    this.stormEndsAt = Infinity
+    this.scourWarned = false
+    this.ingestWarned = false
+    this.impactAt = -1
+    this.bracedAt = -99
+    this.signals = []
+    this.lastSignalAt = -99
+    this.lastSignalBy = { engineer: null, pilot: null, sparks: null }
+    this.vegaAckAt = null
+    this.lastAckedFrom = null
+    this.busDraw = 0.1
+    this.gripes = {}
+    this.outcome = null
+    this.loseReason = null
+    this.seq = 1
     this.rng = mulberry32(this.seed)
     this.bus = new Bus(`${this.code}-${this.seed}`)
     this.incident = null
     this.busThreat = null
     this.unsealedAsk = []
+    this.stolenAsk = []
     this.at = 'spine'
     this.walkingTo = null
     this.arriveAt = 0
@@ -280,8 +314,8 @@ export class Hab {
     this.phase = 'play'
     this.elapsed = 0
     this.scriptI = 0
-    this.air = 48
-    this.power = 70
+    this.air = 58
+    this.power = 74
     this.seams = 0
     this.seamBlown = false
     this.alarms = [
@@ -322,9 +356,11 @@ export class Hab {
       { t: stormWarnAt + 6, kind: 'ghost-replay' },
       { t: stormWarnAt + stormLead, kind: 'impact' },
       { t: 58, kind: 'ghost-steal' },
-      { t: 64, kind: 'ghost-forge' },
-      { t: 73, kind: 'ghost-forge' },
+      // First sealed forgery after the shout/token window — proves the key was used.
+      { t: 67, kind: 'ghost-forge' },
+      { t: 74, kind: 'ghost-forge' },
       { t: 82, kind: 'leak', valve: secondValve },
+      { t: 86, kind: 'ghost-forge' },
     ].sort((a, b) => a.t - b.t) as ScriptEvent[]
   }
 
@@ -394,10 +430,9 @@ export class Hab {
           hit += 30
           this.alarm('HULL SCOURED')
         }
-        // Steep on purpose. At 14 a crew could skip the brace entirely and still
-        // survive, which made Idris's second call decoration.
+        // Steep on purpose. Skip brace with shields up and the round still ends.
         if (this.elapsed - this.bracedAt > BRACE_WINDOW_SECONDS) {
-          hit += 26
+          hit += 48
         }
         if (hit) {
           this.air = clamp(this.air - hit, 0, 120)
@@ -409,22 +444,22 @@ export class Hab {
       }
       case 'ghost-forge': {
         const pickedAt = this.elapsed
-        const shot = this.bus.pickHarmful({
-          air: this.air,
-          power: this.power,
-          pumpOn: this.pumpOn,
-          stormActive: this.stormActive,
-          leaking: VALVES.filter((v) => this.leaks[v]),
-          sealedValves: VALVES.filter((v) => this.valves[v] === 'sealed'),
-          correct: this.correctNow(),
-        })
-        // Signing is async and the tick is not. The card lands a frame later,
-        // which is indistinguishable from network jitter and costs nothing.
+        const shot = this.bus.stolenFrom
+          ? this.pickStolenHarm()
+          : this.bus.pickHarmful({
+              air: this.air,
+              power: this.power,
+              pumpOn: this.pumpOn,
+              stormActive: this.stormActive,
+              leaking: VALVES.filter((v) => this.leaks[v]),
+              sealedValves: VALVES.filter((v) => this.valves[v] === 'sealed'),
+              correct: this.correctNow(),
+            })
         void this.bus.forge(shot.seat, shot.signal, pickedAt).then((f) => {
           if (this.phase !== 'play') return
           this.pushSignal(shot.signal, shot.seat, f.seal, f.tag, f.seq)
-          this.alarm('BUS: UNSIGNED TRAFFIC')
-          this.busThreat = 'FORGED ORDERS ON THE BUS'
+          this.alarm(this.bus.stolenFrom ? 'BUS: SIGNED TRAFFIC — UNTRUSTED' : 'BUS: UNSIGNED TRAFFIC')
+          this.busThreat = this.bus.stolenFrom ? 'A STOLEN KEY IS SIGNING' : 'FORGED ORDERS ON THE BUS'
           this.speak('Somebody else is on our frequency.', 'astronaut')
           this.listener?.onView()
         })
@@ -443,9 +478,8 @@ export class Hab {
         const seated = CREW_IDS.filter((c) => this.isSeated(c))
         const victim = this.bus.pickVictim(this.rng, seated)
         this.bus.steal(victim, this.elapsed)
-        // Nothing is announced. The victim's own signing log is the only tell,
-        // and the operator's glass will now call these orders genuine.
-        this.busThreat = 'A KEY IS LOOSE'
+        // No busThreat and no named seat — the victim's log is the only tell
+        // until a sealed forgery lands. Chen's banner waits for that log line.
         this.speak('That did not come from any of you.', 'astronaut')
         break
       }
@@ -460,9 +494,13 @@ export class Hab {
   private physics(dt: number) {
     // Breathing.
     let air = this.air - 0.5 * dt
+    // A live stolen key bleeds the cabin. Rotation is not optional flavour —
+    // leave it loose and the round ends without anyone needing to obey a card.
+    // Leave the key loose and the cabin empties even if nobody obeys a card.
+    if (this.bus.stolenFrom) air -= 0.95 * dt
 
     for (const v of VALVES) {
-      if (this.leaks[v] && this.valves[v] !== 'sealed') air -= 2.9 * dt
+      if (this.leaks[v] && this.valves[v] !== 'sealed') air -= 2.4 * dt
     }
 
     // Valves are the intake as well as the leak, so sealing both starves the pump.
@@ -527,6 +565,32 @@ export class Hab {
     if (this.stormEta != null && !this.stormActive) {
       this.stormEta = Math.max(0, this.impactAt - this.elapsed)
     }
+  }
+
+  /**
+   * After a key theft, sealed forgeries must move the ship against the crew.
+   * Revoke decoys are how a careful Vega accidentally *fixes* the theft — so
+   * once GHOST holds a key it only writes pump / valve / shield damage.
+   */
+  private pickStolenHarm(): { seat: CrewId; signal: SignalId } {
+    const correct = this.correctNow()
+    const ok = (s: SignalId) => !correct.includes(s)
+    const seat = this.bus.stolenFrom ?? 'engineer'
+    if (this.stormActive && !this.pumpOn && ok('pump-on')) return { seat, signal: 'pump-on' }
+    if (this.air > 75 && !this.pumpOn && ok('pump-on')) return { seat, signal: 'pump-on' }
+    if (this.air < 60 && this.pumpOn && !this.stormActive && ok('pump-off')) {
+      return { seat, signal: 'pump-off' }
+    }
+    const quiet = VALVES.filter((v) => !this.leaks[v] && this.valves[v] === 'open')
+    for (const v of quiet) {
+      const sig: SignalId = v === 'port' ? 'seal-port' : 'seal-starboard'
+      if (ok(sig)) return { seat, signal: sig }
+    }
+    if (!this.stormActive && this.power < 50 && ok('shields-on')) {
+      return { seat, signal: 'shields-on' }
+    }
+    if (ok('pump-on')) return { seat, signal: 'pump-on' }
+    return { seat, signal: 'brace' }
   }
 
   private isSeated(role: StationId): boolean {
@@ -620,6 +684,7 @@ export class Hab {
    * unsigned order could get in, and it is thirty lines long.
    */
   async applyAction(playerId: string, action: ClientAction): Promise<string | null> {
+    if (!action || typeof action.type !== 'string') return 'Bad action'
     const p = this.players.get(playerId)
     if (!p) return 'Unknown crew'
 
@@ -628,6 +693,7 @@ export class Hab {
       if (this.phase !== 'end') return 'Finish the round first'
       this.stopClock()
       this.phase = 'lobby'
+      this.seed = Date.now()
       this.outcome = null
       this.loseReason = null
       this.incident = null
@@ -635,6 +701,7 @@ export class Hab {
       this.signals = []
       this.alarms = []
       this.unsealedAsk = []
+      this.stolenAsk = []
       for (const pl of this.players.values()) pl.ready = false
       this.listener?.onView()
       return null
@@ -649,7 +716,10 @@ export class Hab {
       const owner = SIGNAL_OWNER[action.signal]
       const covers = this.coversOf(role as CrewId)
       if (!covers.includes(owner)) return 'Not your call to make'
-      const remain = SIGNAL_COOLDOWN_MS - (this.elapsed - this.lastSignalAt) * 1000
+      // Short crew shares one pad across every seat — tighten the lockout so
+      // two phones can still fire three systems before the air runs out.
+      const lockMs = covers.length > 1 ? 2600 : SIGNAL_COOLDOWN_MS
+      const remain = lockMs - (this.elapsed - this.lastSignalAt) * 1000
       if (remain > 0) return 'Pad is still resetting'
 
       const seat = role as CrewId
@@ -705,11 +775,13 @@ export class Hab {
       // Hardware key + registry. A compromised bus cannot rotate itself.
       if (this.at !== 'comms') return 'Registry is in the Comms Bay — walk there'
       if (!this.holdingToken) return 'You need the hardware token from the Spine'
+      if (!CREW_IDS.includes(action.seat)) return 'Unknown seat'
       const { caught } = this.bus.revoke(action.seat, this.elapsed)
+      if (caught) this.stolenAsk = []
       this.alarm(
         caught
-          ? `KEY ROTATED — ${action.seat.toUpperCase()} WAS COMPROMISED`
-          : `KEY ROTATED — ${action.seat.toUpperCase()} WAS CLEAN`,
+          ? `KEY ROTATED — ${CREW_META[action.seat].callsign} WAS COMPROMISED`
+          : `KEY ROTATED — ${CREW_META[action.seat].callsign} WAS CLEAN`,
       )
       if (caught) {
         this.busThreat = null
@@ -761,13 +833,16 @@ export class Hab {
         this.bracedAt = this.elapsed
         break
       case 'clear-signals': {
-        const latest = this.signals.filter((s) => s.fresh).at(-1)
+        const latest =
+          this.signals.filter((s) => s.fresh && s.seal === 'sealed').at(-1) ??
+          this.signals.filter((s) => s.fresh).at(-1)
         if (latest) {
           this.vegaAckAt = this.elapsed
           this.lastAckedFrom = latest.from
         }
         this.signals = this.signals.map((s) => ({ ...s, fresh: false }))
         this.unsealedAsk = []
+        this.stolenAsk = []
         break
       }
     }
@@ -824,7 +899,12 @@ export class Hab {
   ) {
     this.lastAckedFrom = null
     this.bus.delivered += 1
-    if (seal !== 'sealed') this.unsealedAsk = [...this.unsealedAsk.slice(-5), { signal, at: this.elapsed }]
+    if (seal !== 'sealed') {
+      this.unsealedAsk = [...this.unsealedAsk.slice(-5), { signal, at: this.elapsed }]
+    } else if (from && this.bus.compromised(from)) {
+      // Verifies on the glass, but it is still GHOST. Obeying it must cost.
+      this.stolenAsk = [...this.stolenAsk.slice(-5), { signal, at: this.elapsed }]
+    }
     this.signals = [
       ...this.signals.slice(-5),
       {
@@ -886,15 +966,31 @@ export class Hab {
   private obeyCheck(action: ClientAction) {
     const asked = this.askedBy(action)
     if (!asked) return
-    const live = new Set(
-      this.signals.filter((s) => s.fresh && s.seal !== 'sealed').map((s) => s.signal),
+    const live = new Set(this.signals.filter((s) => s.fresh).map((s) => s.signal))
+
+    const stolen = this.stolenAsk.find(
+      (u) =>
+        u.signal === asked &&
+        this.elapsed - u.at <= OBEY_WINDOW_SECONDS &&
+        live.has(u.signal),
     )
+    // Only while the stolen key is still live. After a real rotation the card is
+    // just a bad systems call — physics handles it, the incident report does not.
+    if (stolen && this.bus.stolenFrom) {
+      this.stolenAsk = this.stolenAsk.filter((u) => u !== stolen)
+      this.bus.obeyedUnsealed += 1
+      this.air = clamp(this.air - 12, 0, 120)
+      this.alarm('STOLEN-KEY ORDER EXECUTED')
+      this.gripe('vega', 'THAT KEY WAS STOLEN. YOU JUST DID WHAT GHOST ASKED.')
+      this.speak('That order was not one of ours.', 'astronaut')
+      return
+    }
+
     const hit = this.unsealedAsk.find(
       (u) =>
         u.signal === asked &&
         this.elapsed - u.at <= OBEY_WINDOW_SECONDS &&
-        // Still on the glass. Binned cards cannot be obeyed.
-        live.has(u.signal),
+        this.signals.some((s) => s.fresh && s.seal !== 'sealed' && s.signal === u.signal),
     )
     if (!hit) return
     this.unsealedAsk = this.unsealedAsk.filter((u) => u !== hit)
@@ -948,8 +1044,9 @@ export class Hab {
         return { text: 'OLD COUNTER — THIS ORDER ALREADY RAN ONCE.', tone: 'fight' }
       }
       if (fresh && fresh.seal === 'sealed' && REVOKE_TARGET[fresh.signal]) {
+        const seat = REVOKE_TARGET[fresh.signal]!
         return {
-          text: `ROTATE ${REVOKE_TARGET[fresh.signal]!.toUpperCase()} — TOKEN TO COMMS`,
+          text: `ROTATE ${CREW_META[seat].callsign} — TOKEN TO COMMS`,
           tone: 'fight',
         }
       }
@@ -1009,10 +1106,10 @@ export class Hab {
     }
 
     if (role === 'sparks') {
-      if (this.bus.stolenFrom) {
-        const who = this.bus.stolenFrom === 'engineer' ? 'ROOK' : 'IDRIS'
+      const stolen = this.bus.stolenFrom
+      if (stolen && this.bus.logFor(stolen).some((e) => !e.mine)) {
         return {
-          text: `${who}'S KEY IS LOOSE. SEND THE ROTATE CARD. SHE HAS TO WALK IT.`,
+          text: 'A KEY IS SIGNING WITHOUT ITS OWNER. ASK WHO. SEND ROTATE — SHE WALKS THE TOKEN.',
           tone: 'fight',
         }
       }
@@ -1065,8 +1162,8 @@ export class Hab {
   }
 
   lobbyPlayers(): LobbyPlayer[] {
-    return [...this.players.values()].map((p) => ({
-      id: p.id,
+    return [...this.players.values()].map((p, i) => ({
+      id: `seat-${i}`,
       name: p.name,
       role: p.role,
       ready: p.ready,

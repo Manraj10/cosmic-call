@@ -170,6 +170,14 @@ export class Bus {
     this.stolenFrom = seat
     this.stolenSeat = seat
     this.stolenAt = now
+    // Log a signed-looking false entry at once so the victim's pad lights up
+    // before GHOST's first sealed card hits the glass.
+    const seq = this.nextSeq[seat]
+    this.nextSeq[seat] = seq + 1
+    this.log[seat] = [
+      ...this.log[seat].slice(-7),
+      { signal: 'pump-on', seq, at: now, mine: false },
+    ]
   }
 
   /**
