@@ -1,8 +1,46 @@
+import { useEffect, useState } from 'react'
 import { CREW_META } from '@shared/content'
 import type { ClientView, IncidentReport } from '@shared/types'
 
+/**
+ * Mission Control reading the incident report back. The round is already graded
+ * by the time this fires, so a slow or absent model costs a sentence and
+ * nothing else — and with no key set the written line is what everyone hears.
+ */
+function useRadioDebrief(r: IncidentReport | null, won: boolean) {
+  const [line, setLine] = useState<{ text: string; by: string } | null>(null)
+  useEffect(() => {
+    if (!r) return
+    let live = true
+    void fetch('/api/debrief', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        won,
+        delivered: r.delivered,
+        forged: r.forged,
+        replays: r.replays,
+        obeyedUnsealed: r.obeyedUnsealed,
+        stolenFrom: r.stolenFrom ? CREW_META[r.stolenFrom].callsign : null,
+        timeToRevoke: r.timeToRevoke,
+        falseRevokes: r.falseRevokes,
+      }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((j) => {
+        if (live && j) setLine(j as { text: string; by: string })
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [r, won])
+  return line
+}
+
 export function Debrief({ view }: { view: ClientView }) {
   const won = view.outcome === 'won'
+  const radio = useRadioDebrief(view.incident, won)
   return (
     <div
       className="app stage"
@@ -20,7 +58,7 @@ export function Debrief({ view }: { view: ClientView }) {
         </div>
       </div>
 
-      {view.incident ? <Incident r={view.incident} /> : null}
+      {view.incident ? <Incident r={view.incident} radio={radio} /> : null}
 
       {!won ? (
         <div className="brief">
@@ -49,7 +87,13 @@ export function Debrief({ view }: { view: ClientView }) {
  * a security team drills against, and they are the numbers people argue about
  * at the table afterwards, which is the whole reason the round ends here.
  */
-function Incident({ r }: { r: IncidentReport }) {
+function Incident({
+  r,
+  radio,
+}: {
+  r: IncidentReport
+  radio: { text: string; by: string } | null
+}) {
   const clean = r.obeyedUnsealed === 0
   return (
     <div className="incident">
@@ -86,6 +130,12 @@ function Incident({ r }: { r: IncidentReport }) {
         />
         <Row k="clean keys rotated on a guess" v={r.falseRevokes} />
       </div>
+      {radio ? (
+        <div className="incident-radio">
+          <span className="tag">mission control · {radio.by}</span>
+          <p>{radio.text}</p>
+        </div>
+      ) : null}
       <div className="incident-note">
         {r.stolenFrom == null
           ? 'Nobody lost a key this round.'

@@ -32,10 +32,11 @@ export function Home(props: {
     >
       <div className="hero">
         <div className="tag">four astronauts · one dust storm · 90 seconds</div>
-        <h1>CROSSTALK</h1>
+        <h1>AIRGAP</h1>
         <p className="pitch">
           Four phones. Four opposite alerts. <em>Power will tell oxygen to kill the pump. Oxygen
-          will say absolutely not. A picture slams the glass anyway.</em>
+          will say absolutely not. A picture slams the glass anyway — and something on the bus is
+          forging them.</em>
         </p>
       </div>
 

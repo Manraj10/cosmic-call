@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { Server } from 'socket.io'
 import { hearsSpeech } from '../shared/types.ts'
 import type { ClientAction, StationId } from '../shared/types.ts'
+import { debriefLine } from './director.ts'
 import { Hab, makeCode } from './game.ts'
 import type { SpeakPacket } from './game.ts'
 
@@ -136,6 +137,19 @@ app.post('/api/voice', async (req, res) => {
   res.send(buf)
 })
 
+/**
+  * The after-action line. Called once, after the round is already graded, so a
+  * slow or missing model costs a sentence and never a result.
+  */
+app.post('/api/debrief', async (req, res) => {
+  const f = req.body as Parameters<typeof debriefLine>[0]
+  if (!f || typeof f.delivered !== 'number') {
+    res.status(400).json({ error: 'no-report' })
+    return
+  }
+  res.json(await debriefLine(f))
+})
+
 app.get('/api/health', (_req, res) => {
   res.json({
     ok: true,
@@ -145,6 +159,13 @@ app.get('/api/health', (_req, res) => {
       : process.env.XAI_API_KEY
         ? 'grok'
         : 'browser',
+    director: process.env.IFM_API_KEY
+      ? 'ifm-k2'
+      : process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
+        ? 'gemini'
+        : process.env.XAI_API_KEY || process.env.GROK_API_KEY
+          ? 'grok'
+          : 'hab',
   })
 })
 
@@ -274,7 +295,16 @@ app.get('/{*splat}', (_req, res, next) => {
   next()
 })
 
-const port = Number(process.env.PORT || 43128)
+/**
+ * The UI dev server owns 43127. Some launchers inject `PORT` meaning "the port
+ * the web thing should be on", which would quietly point the ship at the socket
+ * Vite is already holding and leave every socket connection refused. Take
+ * SHIP_PORT first, and refuse to honour a PORT that collides in dev.
+ */
+const CLIENT_PORT = 43127
+const requested = Number(process.env.SHIP_PORT || process.env.PORT || 43128)
+const port =
+  requested === CLIENT_PORT && process.env.NODE_ENV !== 'production' ? 43128 : requested
 httpServer.listen(port, '0.0.0.0', () => {
   console.log(`HAB bus on :${port}`)
 })

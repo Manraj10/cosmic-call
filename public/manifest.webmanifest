@@ -1,6 +1,6 @@
 {
-  "name": "CROSSTALK",
-  "short_name": "CROSSTALK",
+  "name": "AIRGAP",
+  "short_name": "AIRGAP",
   "description": "Four astronauts, one dust storm, ninety seconds. She cannot hear you.",
   "start_url": "/",
   "display": "standalone",

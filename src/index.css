@@ -1384,3 +1384,20 @@ body::after {
     transition: none;
   }
 }
+
+/* Mission Control reading the report back. Quiet: the numbers above it are the
+   evidence, this is only the voice. */
+.incident-radio {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--air);
+  background: #0b1418;
+  display: grid;
+  gap: 4px;
+}
+.incident-radio p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink);
+}
