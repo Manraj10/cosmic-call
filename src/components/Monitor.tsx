@@ -43,6 +43,9 @@ export function HabitatMonitor({
       <div className="grid min-h-0 flex-1 gap-3 overflow-hidden p-3 lg:grid-cols-[minmax(0,1fr)_280px]">
         <HabitatMap state={state} onMove={() => {}} onPickup={() => {}} clockSkew={clockSkew} interactive={false} />
         <aside className="glass flex flex-col gap-3 overflow-y-auto rounded-xl p-3">
+          <TankBar label="O₂ TANK" pct={state.habitat.oxygenPct} warn={42} crit={22} />
+          <TankBar label="BATTERY" pct={state.habitat.batteryPct} warn={28} crit={12} />
+          <div className="font-mono text-[10px] text-white/50">CABIN {state.habitat.tempC.toFixed(0)}°C</div>
           <div className="font-mono text-[10px] tracking-[0.3em] text-cyan-300">CREW · {state.playerCount}</div>
           <ul className="space-y-2">
             {state.players.map((p) => (
@@ -65,20 +68,33 @@ export function HabitatMonitor({
               {e.title}
             </div>
           ))}
-          {state.tasks[0] && (
-            <div className="rounded border border-amber-400/30 bg-amber-400/10 p-2 text-xs text-amber-50">
-              <div className="font-display text-sm">{state.tasks[0].title}</div>
-              <p className="mt-1 text-white/80">
-                Operators have the dials. Everyone else has numbers. The formula has blanks — talk.
-              </p>
+          {state.tasks.filter((t) => !t.expired).map((t) => (
+            <div key={t.id} className="rounded border border-amber-400/30 bg-amber-400/10 p-2 text-xs text-amber-50">
+              <div className="font-display text-sm">{t.title}</div>
+              <p className="mt-1 text-white/80">{t.trade}</p>
             </div>
-          )}
+          ))}
           {state.youAreHost && state.phase === "lobby" && (
             <Button size="lg" className="mt-auto w-full" disabled={!state.canStart}>
               Waiting for 2 astronauts
             </Button>
           )}
         </aside>
+      </div>
+    </div>
+  );
+}
+
+function TankBar({ label, pct, warn, crit }: { label: string; pct: number; warn: number; crit: number }) {
+  const color = pct <= crit ? "#ff3b4e" : pct <= warn ? "#ffb020" : "#7ee7ff";
+  return (
+    <div>
+      <div className="flex justify-between font-mono text-[9px] tracking-widest text-white/50">
+        <span>{label}</span>
+        <span style={{ color }}>{pct.toFixed(0)}%</span>
+      </div>
+      <div className="mt-1 h-4 overflow-hidden rounded-sm bg-black/50 ring-1 ring-white/10">
+        <div className="h-full" style={{ width: `${Math.max(2, Math.min(100, pct))}%`, background: color }} />
       </div>
     </div>
   );

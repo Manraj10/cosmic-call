@@ -27,7 +27,7 @@ import type {
 } from "../../src/shared/protocol";
 import { environmentalAt, planMission } from "./director";
 import { fallbackRecap, grokLine, grokRecap } from "./grok";
-import { applyPuzzle, boardCopy, createPuzzle, howToFor, intelFor, type PuzzleInstance } from "./puzzles";
+import { applyPuzzle, boardCopy, createPuzzle, howToFor, intelFor, PUZZLE_TRADE, type PuzzleInstance } from "./puzzles";
 import { mulberry32, pick, type Rng } from "./rng";
 import { maxUrgentTasks, roleCard, ROLE_DEFS, rolesForCount, timerScale } from "./roles";
 import {
@@ -574,17 +574,17 @@ export class GameRoom {
 
     const scale = timerScale(this.astronautCount());
     const cap = maxUrgentTasks(this.astronautCount());
-    const activeUrgent = this.tasks.filter(
+    let activeUrgent = this.tasks.filter(
       (t) => !t.resolved && (t.puzzle.severity === "urgent" || t.puzzle.severity === "critical"),
     ).length;
 
     while (this.planIndex < this.plan.length && elapsed >= this.plan[this.planIndex]!.atMs) {
       const spec = this.plan[this.planIndex]!;
       this.planIndex += 1;
-      if (activeUrgent >= cap && (spec.type !== "airlock_seal" && spec.type !== "reactor_reset")) {
-        continue;
-      }
+      const critical = spec.type === "airlock_seal" || spec.type === "reactor_reset" || spec.type === "med_dose";
+      if (activeUrgent >= cap && !critical) continue;
       this.spawnType(spec.type, scale);
+      activeUrgent += 1;
     }
 
     for (const ev of environmentalAt(elapsed, this.sim, this.rng, this.envSpawned)) {
@@ -1047,6 +1047,7 @@ function taskView(
     youHaveControl: control,
     yourJob: brief.job,
     askCrew: brief.ask,
+    trade: PUZZLE_TRADE[puz.type] || puz.cost,
     requiresPresence: puz.requiresPresence,
     requiredRoom: puz.requiredRoom,
     requiredItem: puz.requiredItem,

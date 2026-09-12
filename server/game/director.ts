@@ -1,4 +1,4 @@
-import { int, shuffle, type Rng } from "./rng";
+import { int, type Rng } from "./rng";
 import type { Sim } from "./simulation";
 import { note } from "./simulation";
 
@@ -25,23 +25,26 @@ const CORE = [
 ] as const;
 
 export function planMission(rng: Rng, playerCount: number): Planned[] {
-  const head: (typeof CORE)[number][] = ["oxygen_leak", "power_split", "med_dose", "freq_tune", "heater"];
-  const rest = shuffle(
-    rng,
-    CORE.filter((t) => !head.includes(t)),
-  );
-  const types = [...head, ...rest];
+  const pairs: [(typeof CORE)[number], (typeof CORE)[number]][] = [
+    ["oxygen_leak", "heater"],
+    ["power_split", "freq_tune"],
+    ["med_dose", "solar_angle"],
+    ["co2_route", "pressure_patch"],
+    ["valve_logic", "power_surge"],
+    ["reactor_reset", "airlock_seal"],
+    ["memory_code", "pattern"],
+  ];
   const span = 7 * 60 * 1000;
-  const start = 16000;
-  const gap = playerCount <= 2 ? 38000 : playerCount === 3 ? 30000 : 24000;
+  const start = 14000;
+  const gap = playerCount <= 2 ? 52000 : playerCount === 3 ? 42000 : 34000;
   const out: Planned[] = [];
   let t = start;
-  for (const type of types) {
-    t += int(rng, Math.floor(gap * 0.7), Math.floor(gap * 1.25));
-    if (t > span - 25000) break;
-    out.push({ atMs: t, type });
+  for (const [a, b] of pairs) {
+    if (t > span - 28000) break;
+    out.push({ atMs: t, type: a });
+    out.push({ atMs: t + 2500, type: b });
+    t += int(rng, Math.floor(gap * 0.85), Math.floor(gap * 1.15));
   }
-  // Memory code needs an early MC whisper — schedule it later than mid-mission.
   const mem = out.find((e) => e.type === "memory_code");
   if (mem && mem.atMs < 90000) mem.atMs = 110000 + int(rng, 0, 40000);
   out.sort((a, b) => a.atMs - b.atMs);

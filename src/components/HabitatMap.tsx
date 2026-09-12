@@ -1,6 +1,6 @@
 "use client";
 
-import { ITEM_LABELS, ROOM_LABELS, ROOM_SHORT, type RoomId } from "@/shared/constants";
+import { ITEM_LABELS, ITEM_SHORT, ROOM_LABELS, ROOM_SHORT, type RoomId } from "@/shared/constants";
 import type { ClientState } from "@/shared/protocol";
 import { cn } from "@/lib/utils";
 
@@ -378,6 +378,7 @@ export function HabitatMap({
                   .map((it, i) => (
                     <g
                       key={it.id}
+                      className={interactive ? "cursor-pointer" : undefined}
                       style={{ pointerEvents: interactive ? "auto" : "none" }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -385,15 +386,26 @@ export function HabitatMap({
                       }}
                     >
                       <rect
-                        x={r.x + 28 + i * 40}
-                        y={r.y + r.h - 22}
-                        width="34"
-                        height="16"
-                        rx="3"
+                        x={r.x + 18 + i * 72}
+                        y={r.y + r.h - 28}
+                        width="68"
+                        height="22"
+                        rx="4"
                         fill="#ffb020"
                         stroke="#fff"
+                        strokeWidth="1.4"
                       />
-                      <title>{ITEM_LABELS[it.type]}</title>
+                      <text
+                        x={r.x + 52 + i * 72}
+                        y={r.y + r.h - 13}
+                        textAnchor="middle"
+                        fill="#1a0c04"
+                        fontSize="9"
+                        fontWeight="800"
+                      >
+                        {ITEM_SHORT[it.type]}
+                      </text>
+                      <title>{`TAP TO GRAB ${ITEM_LABELS[it.type]}`}</title>
                     </g>
                   ))}
               </g>
@@ -478,11 +490,27 @@ export function HabitatMap({
           })}
         </div>
       )}
+      {interactive && you && state.items.filter((it) => it.location === you.location).length > 0 && (
+        <div className="mt-2 space-y-1">
+          {state.items
+            .filter((it) => it.location === you.location)
+            .map((it) => (
+              <button
+                key={it.id}
+                type="button"
+                onClick={() => onPickup(it.id)}
+                className="h-12 w-full rounded-md bg-amber-400 font-display text-sm tracking-widest text-black"
+              >
+                TAP TO GRAB {ITEM_LABELS[it.type].toUpperCase()}
+              </button>
+            ))}
+        </div>
+      )}
       <div className="mt-1 font-mono text-[10px] tracking-[0.25em] text-cyan-200/60">
         {interactive
           ? you?.movingTo
             ? `WALKING ${ROOM_LABELS[you.location].toUpperCase()} → ${ROOM_LABELS[you.movingTo].toUpperCase()}`
-            : "TAP A MODULE (OR THE CHIPS) TO WALK THERE"
+            : "YELLOW TAGS ARE KITS — TAP THE TAG OR THE GRAB BUTTON"
           : "HABITAT MONITOR — CREW WALKS FROM THEIR DEVICES"}
       </div>
     </div>

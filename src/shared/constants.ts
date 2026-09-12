@@ -62,6 +62,15 @@ export const ITEM_LABELS: Record<ItemType, string> = {
   circuit_fuse: "Circuit Fuse",
 };
 
+export const ITEM_SHORT: Record<ItemType, string> = {
+  repair_kit: "KIT",
+  oxygen_canister: "O₂ CAN",
+  battery_cell: "CELL",
+  medical_kit: "MEDKIT",
+  coolant_cartridge: "COOLANT",
+  circuit_fuse: "FUSE",
+};
+
 export const ITEM_HOME: Record<ItemType, RoomId> = {
   repair_kit: "crew",
   oxygen_canister: "life_support",

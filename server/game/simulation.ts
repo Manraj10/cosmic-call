@@ -189,6 +189,9 @@ export function habitatPublic(sim: Sim): HabitatPublic {
     debris: sim.pressureLeak > 0,
     solarAngle: sim.solarAngle,
     solarOptimal: sim.solarOptimal,
+    oxygenPct: sim.oxygen,
+    batteryPct: sim.battery,
+    tempC: sim.temperature,
   };
 }
 
@@ -342,37 +345,30 @@ export function systemGauges(sim: Sim, systems: SystemId[]): Record<string, stri
   const d = demandKw(sim);
   const out: Record<string, string> = {};
   if (systems.includes("life_support")) {
-    out["O₂ tank"] = `${sim.oxygen.toFixed(1)}%`;
-    out["O₂ production"] = `${sim.oxygenProduction.toFixed(1)} L/min`;
-    out["Crew demand"] = `${sim.oxygenDemand.toFixed(1)} L/min`;
-    out["Leak"] = `${sim.oxygenLeak.toFixed(1)} L/min`;
+    out["O₂ tank"] = `${sim.oxygen.toFixed(0)}%`;
+    out["O₂ production"] = `${sim.oxygenProduction.toFixed(0)} L/min`;
     out["CO₂"] = `${sim.co2.toFixed(0)}%`;
-    out["Filter"] = `${sim.co2Filter.toFixed(0)}%`;
-    out["Pressure"] = `${sim.pressure.toFixed(1)} kPa`;
+    out["Pressure"] = `${sim.pressure.toFixed(0)} kPa`;
   }
   if (systems.includes("power")) {
     out["Generation"] = `${sim.generation.toFixed(0)} kW`;
-    out["Battery"] = `${sim.battery.toFixed(1)}%`;
-    out["Demand"] = `${d.total.toFixed(0)} kW`;
-    out["O₂ power cost"] = `${sim.o2KwPerLiter} kW / L/min`;
+    out["Battery"] = `${sim.battery.toFixed(0)}%`;
+    out["Bus demand"] = `${d.total.toFixed(0)} kW`;
     out["Headroom"] = `${(sim.generation - d.total).toFixed(0)} kW`;
   }
   if (systems.includes("thermal")) {
     out["Cabin temp"] = `${sim.temperature.toFixed(1)}°C`;
     out["Heater"] = sim.now < sim.heaterUntil ? "ON" : "OFF";
-    out["Cooler"] = sim.coolerOn ? "ON" : "OFF";
   }
   if (systems.includes("comms")) {
     out["Signal"] = `${sim.comms.toFixed(0)}%`;
-    out["Uplink"] = sim.now < sim.commsDownUntil ? "NOMINAL FAIL" : "LOCKED";
+    out["Uplink"] = sim.now < sim.commsDownUntil ? "DOWN" : "LOCKED";
   }
   if (systems.includes("medical")) {
     out["Cabin radiation"] = `${sim.radiation.toFixed(0)}%`;
-    out["CO₂ (clinic)"] = `${sim.co2.toFixed(0)}%`;
   }
   if (systems.includes("exterior")) {
-    out["Array angle"] = `${sim.solarAngle.toFixed(0)}°`;
-    out["Solar efficiency"] = `${(sim.solarEfficiency * 100).toFixed(0)}%`;
+    out["Array park"] = `${sim.solarAngle.toFixed(0)}°`;
     out["Dust"] = sim.now < sim.dustStormUntil ? "STORM" : "CLEAR";
   }
   return out;

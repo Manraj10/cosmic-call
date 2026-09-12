@@ -19,61 +19,75 @@ export function TaskPanel({
 }) {
   const secs = Math.ceil(task.timerMs / 1000);
   const blocked = Boolean(task.waitingOn) || !task.youHaveControl;
+  const late = task.expired || secs <= 0;
 
   return (
     <div
       className={cn(
         "glass flex flex-col gap-3 rounded-xl p-3 sm:p-4",
+        task.youInRoom && task.youHaveControl && "border-cyan-300/50",
         task.severity === "critical" && "border-red-500/50 crit-pulse",
-        task.severity === "urgent" && "border-amber-400/40",
+        task.severity === "urgent" && !task.youInRoom && "border-amber-400/40",
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="font-display text-[10px] tracking-[0.35em] text-amber-300">
-            {task.severity.toUpperCase()} TASK
+            {late ? "LATE" : task.severity.toUpperCase()}
+            {task.youHaveControl ? " · YOUR DIAL" : " · SAY THIS"}
           </div>
           <h3 className="font-display text-xl text-white sm:text-2xl">⚠ {task.title}</h3>
         </div>
         <div
           className={cn(
             "font-display text-3xl tabular-nums",
-            secs <= 12 ? "text-red-400" : "text-cyan-200",
+            late ? "text-red-400" : secs <= 12 ? "text-red-400" : "text-cyan-200",
           )}
         >
-          {secs}s
+          {late ? "LATE" : `${secs}s`}
         </div>
       </div>
 
-      <Block label="YOUR JOB" text={task.yourJob} accent />
-      <Block label="ASK THE CREW" text={task.askCrew} />
-      {!task.youHaveControl && (
-        <div className="rounded-md border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-sm text-cyan-50">
-          You do not have this dial. Your job is intel — talk. Someone else confirms.
-        </div>
+      {task.youHaveControl && (
+        <TaskControlBoard
+          key={task.id}
+          control={task.control}
+          confirmLocked={blocked}
+          lockReason={task.waitingOn || ""}
+          onConfirm={onConfirm}
+          onHold={onHold}
+        />
       )}
+
+      <p className="font-mono text-xs tracking-wide text-cyan-200">{task.howTo}</p>
+
       <div>
-        <div className="font-mono text-[10px] tracking-[0.25em] text-cyan-300/70">YOUR INTEL (ONLY YOU SEE THIS)</div>
-        <ul className="mt-1 space-y-1 text-sm text-cyan-50">
+        <div className="font-mono text-[10px] tracking-[0.25em] text-cyan-300/70">
+          {task.youHaveControl ? "YOUR NUMBERS" : "READ OUT LOUD"}
+        </div>
+        <ul className="mt-1 space-y-1">
           {task.availableInfo.map((l) => (
-            <li key={l} className="rounded bg-cyan-400/5 px-2 py-1">
+            <li key={l} className="rounded bg-cyan-400/10 px-2 py-1.5 font-display text-sm text-white">
               {l}
             </li>
           ))}
         </ul>
       </div>
-      {task.youHaveControl && <Block label="THE FORMULA" text={task.howTo} />}
-      <div className="grid grid-cols-3 gap-2 text-[11px]">
-        <Mini k="COST" v={task.cost} />
-        <Mini k="RISK" v={task.risk} />
-        <Mini k="BENEFIT" v={task.benefit} />
-      </div>
+
+      {task.youHaveControl && (
+        <p className="text-xs text-orange-200/90">{task.askCrew}</p>
+      )}
+
+      <p className="rounded border border-orange-400/25 bg-orange-400/10 px-2 py-1.5 text-xs text-orange-50">
+        TRADE: {task.trade}
+      </p>
 
       {task.requiredRoom && (
         <div className="text-xs text-amber-200/90">
-          Presence: {ROOM_LABELS[task.requiredRoom]}
-          {task.requiredItem ? ` · Item: ${ITEM_LABELS[task.requiredItem]}` : ""}
-          {task.playersInRoom.length > 0 ? ` · There: ${task.playersInRoom.join(", ")}` : ""}
+          {task.youInRoom
+            ? `At ${ROOM_LABELS[task.requiredRoom]}`
+            : `Walk to ${ROOM_LABELS[task.requiredRoom]}`}
+          {task.requiredItem ? ` · ${ITEM_LABELS[task.requiredItem]}` : ""}
         </div>
       )}
 
@@ -82,37 +96,6 @@ export function TaskPanel({
           {task.waitingOn}
         </div>
       )}
-
-      {task.youHaveControl && (
-        <TaskControlBoard
-          key={task.id}
-          control={task.control}
-          confirmLocked={blocked}
-          lockReason={task.waitingOn || (!task.youHaveControl ? "Not your console." : "")}
-          onConfirm={onConfirm}
-          onHold={onHold}
-        />
-      )}
-    </div>
-  );
-}
-
-function Block({ label, text, accent }: { label: string; text: string; accent?: boolean }) {
-  return (
-    <div>
-      <div className={`font-mono text-[10px] tracking-[0.25em] ${accent ? "text-cyan-300" : "text-orange-300/80"}`}>
-        {label}
-      </div>
-      <p className={`text-sm leading-snug ${accent ? "text-cyan-50" : "text-white/90"}`}>{text}</p>
-    </div>
-  );
-}
-
-function Mini({ k, v }: { k: string; v: string }) {
-  return (
-    <div className="rounded-md bg-black/30 p-2">
-      <div className="font-mono text-[9px] tracking-[0.2em] text-cyan-400/70">{k}</div>
-      <div className="mt-1 text-[11px] leading-snug text-white/80">{v}</div>
     </div>
   );
 }
@@ -248,7 +231,7 @@ function TaskControlBoard({
 function LockNote({ text }: { text: string }) {
   return (
     <div className="mb-2 rounded-md border border-amber-400/40 bg-amber-400/15 px-3 py-2 text-sm text-amber-100">
-      Dial is live. {text} then CONFIRM.
+      {text}
     </div>
   );
 }

@@ -42,7 +42,8 @@ export function GameHUD({
     () => state.tasks.filter((t) => t.assignedToYou || t.youHaveControl || t.availableInfo.length),
     [state.tasks],
   );
-  const focus = myTasks.find((t) => t.assignedToYou) || myTasks[0];
+  const atConsole = myTasks.some((t) => t.youHaveControl && t.youInRoom);
+  const floorItems = state.items.filter((it) => it.location === you?.location);
   const eta = formatEta(state.rescueEtaMs);
   const late = state.rescueEtaMs < 120000;
   const frantic = state.intensity > 0.62;
@@ -77,13 +78,22 @@ export function GameHUD({
         </div>
       </header>
 
-      <div className="relative z-10 hidden flex-1 grid-cols-[220px_minmax(0,1fr)_minmax(280px,380px)] gap-3 overflow-hidden p-3 lg:grid">
+      <div
+        className={`relative z-10 hidden flex-1 gap-3 overflow-hidden p-3 lg:grid ${
+          atConsole
+            ? "grid-cols-[180px_minmax(240px,0.7fr)_minmax(340px,1.15fr)]"
+            : "grid-cols-[220px_minmax(0,1fr)_minmax(280px,380px)]"
+        }`}
+      >
         <aside className="glass flex flex-col gap-2 overflow-y-auto rounded-xl p-3">
+          <Tank label="O₂ TANK" pct={state.habitat.oxygenPct} warn={42} crit={22} />
+          <Tank label="BATTERY" pct={state.habitat.batteryPct} warn={28} crit={12} />
           <Sys k="LIFE SUPPORT" v={state.habitat.oxygen} />
           <Sys k="POWER" v={state.habitat.power} />
           <Sys k="THERMAL" v={state.habitat.thermal} />
           <Sys k="COMMS" v={state.habitat.comms} />
-          <div className="mt-2 font-mono text-[10px] tracking-[0.3em] text-amber-300">EMERGENCIES</div>
+          <div className="font-mono text-[10px] text-white/45">CABIN {state.habitat.tempC.toFixed(0)}°C</div>
+          <div className="mt-2 font-mono text-[10px] tracking-[0.3em] text-amber-300">LIVE CRISES</div>
           {state.emergencies.length === 0 && <div className="text-xs text-white/40">None yet. Talk anyway.</div>}
           {state.emergencies.map((e) => (
             <div key={e.id} className="rounded bg-red-500/10 px-2 py-1 text-xs text-red-200">
@@ -97,17 +107,37 @@ export function GameHUD({
             </div>
           )}
         </aside>
-        <HabitatMap state={state} onMove={move} onPickup={onPickup} clockSkew={clockSkew} />
+        <div className="flex min-h-0 flex-col">
+          {atConsole && you && (
+            <div className="mb-2 rounded-md border border-cyan-300/40 bg-cyan-400/10 px-3 py-2 font-display text-sm tracking-widest text-cyan-100">
+              CONSOLE OPEN · {ROOM_LABELS[you.location].toUpperCase()}
+            </div>
+          )}
+          <HabitatMap state={state} onMove={move} onPickup={onPickup} clockSkew={clockSkew} />
+        </div>
         <aside className="flex flex-col gap-3 overflow-y-auto">
           <YouPanel you={you} gauges={state.gauges} onDrop={onDrop} />
-          {focus && (
-            <TaskPanel
-              task={focus}
-              onUpdate={(p) => onUpdate(focus.id, p)}
-              onConfirm={(p) => onConfirm(focus.id, p)}
-              onHold={(h) => onHold(focus.id, h)}
-            />
+          {floorItems.length > 0 && (
+            <div className="space-y-1">
+              {floorItems.map((it) => (
+                <Button key={it.id} className="h-12 w-full" variant="warn" onClick={() => onPickup(it.id)}>
+                  TAP TO GRAB {ITEM_LABELS[it.type].toUpperCase()}
+                </Button>
+              ))}
+            </div>
           )}
+          {myTasks.length === 0 && (
+            <div className="glass p-4 text-sm text-white/60">No procedure on your board. Help the other station.</div>
+          )}
+          {myTasks.map((task) => (
+            <TaskPanel
+              key={task.id}
+              task={task}
+              onUpdate={(p) => onUpdate(task.id, p)}
+              onConfirm={(p) => onConfirm(task.id, p)}
+              onHold={(h) => onHold(task.id, h)}
+            />
+          ))}
           <ReviveRow state={state} youId={state.you} onRevive={onRevive} />
         </aside>
       </div>
@@ -148,15 +178,24 @@ export function GameHUD({
                   {state.missionControl}
                 </div>
               )}
-              {focus ? (
-                <TaskPanel
-                  task={focus}
-                  onUpdate={(p) => onUpdate(focus.id, p)}
-                  onConfirm={(p) => onConfirm(focus.id, p)}
-                  onHold={(h) => onHold(focus.id, h)}
-                />
+              {floorItems.length > 0 &&
+                floorItems.map((it) => (
+                  <Button key={it.id} className="h-12 w-full" variant="warn" onClick={() => onPickup(it.id)}>
+                    TAP TO GRAB {ITEM_LABELS[it.type].toUpperCase()}
+                  </Button>
+                ))}
+              {myTasks.length === 0 ? (
+                <div className="glass p-4 text-sm text-white/60">No procedure on your board. Help the other station.</div>
               ) : (
-                <div className="glass p-4 text-sm text-white/60">No active procedure on your board. Help someone else.</div>
+                myTasks.map((task) => (
+                  <TaskPanel
+                    key={task.id}
+                    task={task}
+                    onUpdate={(p) => onUpdate(task.id, p)}
+                    onConfirm={(p) => onConfirm(task.id, p)}
+                    onHold={(h) => onHold(task.id, h)}
+                  />
+                ))
               )}
             </div>
           )}
@@ -175,6 +214,21 @@ export function GameHUD({
           ))}
         </div>
       </footer>
+    </div>
+  );
+}
+
+function Tank({ label, pct, warn, crit }: { label: string; pct: number; warn: number; crit: number }) {
+  const color = pct <= crit ? "#ff3b4e" : pct <= warn ? "#ffb020" : "#7ee7ff";
+  return (
+    <div>
+      <div className="flex justify-between font-mono text-[9px] tracking-widest text-white/50">
+        <span>{label}</span>
+        <span style={{ color }}>{pct.toFixed(0)}%</span>
+      </div>
+      <div className="mt-1 h-3 overflow-hidden rounded-sm bg-black/50 ring-1 ring-white/10">
+        <div className="h-full transition-all" style={{ width: `${Math.max(2, Math.min(100, pct))}%`, background: color }} />
+      </div>
     </div>
   );
 }

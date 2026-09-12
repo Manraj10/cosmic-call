@@ -118,7 +118,7 @@ export function roleCard(id: RoleId, slot: number): RoleCard {
 }
 
 export function maxUrgentTasks(playerCount: number) {
-  return playerCount <= 2 ? 1 : 2;
+  return playerCount <= 2 ? 2 : 3;
 }
 
 export function timerScale(playerCount: number) {

@@ -67,6 +67,9 @@ export interface HabitatPublic {
   debris: boolean;
   solarAngle: number;
   solarOptimal: number;
+  oxygenPct: number;
+  batteryPct: number;
+  tempC: number;
 }
 
 export interface EmergencyPublic {
@@ -196,6 +199,7 @@ export interface TaskView {
   youHaveControl: boolean;
   yourJob: string;
   askCrew: string;
+  trade: string;
   requiresPresence: boolean;
   requiredRoom?: RoomId;
   requiredItem?: ItemType;
