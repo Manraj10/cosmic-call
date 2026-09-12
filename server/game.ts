@@ -2,6 +2,7 @@ import {
   BRACE_WINDOW_SECONDS,
   CREW_META,
   MISSION_SECONDS,
+  REVOKE_CARD,
   REVOKE_TARGET,
   SIGNAL_COOLDOWN_MS,
   SIGNAL_OWNER,
@@ -568,29 +569,39 @@ export class Hab {
   }
 
   /**
-   * After a key theft, sealed forgeries must move the ship against the crew.
-   * Revoke decoys are how a careful Vega accidentally *fixes* the theft — so
-   * once GHOST holds a key it only writes pump / valve / shield damage.
+   * After a key theft, sealed forgeries must look like the victim's own pad —
+   * only cards that seat owns. Cross-seat "SEAL PORT from IDRIS" is a free tell.
    */
   private pickStolenHarm(): { seat: CrewId; signal: SignalId } {
     const correct = this.correctNow()
-    const ok = (s: SignalId) => !correct.includes(s)
     const seat = this.bus.stolenFrom ?? 'engineer'
-    if (this.stormActive && !this.pumpOn && ok('pump-on')) return { seat, signal: 'pump-on' }
-    if (this.air > 75 && !this.pumpOn && ok('pump-on')) return { seat, signal: 'pump-on' }
-    if (this.air < 60 && this.pumpOn && !this.stormActive && ok('pump-off')) {
-      return { seat, signal: 'pump-off' }
+    const ok = (s: SignalId) => SIGNAL_OWNER[s] === seat && !correct.includes(s)
+    if (seat === 'engineer') {
+      if (this.stormActive && !this.pumpOn && ok('pump-on')) return { seat, signal: 'pump-on' }
+      if (this.air > 75 && !this.pumpOn && ok('pump-on')) return { seat, signal: 'pump-on' }
+      if (this.air < 60 && this.pumpOn && !this.stormActive && ok('pump-off')) {
+        return { seat, signal: 'pump-off' }
+      }
+      if (ok('pump-on')) return { seat, signal: 'pump-on' }
+      if (ok('pump-off')) return { seat, signal: 'pump-off' }
+    } else if (seat === 'pilot') {
+      if (!this.stormActive && this.power < 50 && ok('shields-on')) {
+        return { seat, signal: 'shields-on' }
+      }
+      if (ok('shields-on')) return { seat, signal: 'shields-on' }
+      if (ok('brace')) return { seat, signal: 'brace' }
+    } else {
+      const quiet = VALVES.filter((v) => !this.leaks[v] && this.valves[v] === 'open')
+      for (const v of quiet) {
+        const sig: SignalId = v === 'port' ? 'seal-port' : 'seal-starboard'
+        if (ok(sig)) return { seat, signal: sig }
+      }
+      if (ok('seal-port')) return { seat, signal: 'seal-port' }
+      if (ok('seal-starboard')) return { seat, signal: 'seal-starboard' }
     }
-    const quiet = VALVES.filter((v) => !this.leaks[v] && this.valves[v] === 'open')
-    for (const v of quiet) {
-      const sig: SignalId = v === 'port' ? 'seal-port' : 'seal-starboard'
-      if (ok(sig)) return { seat, signal: sig }
-    }
-    if (!this.stormActive && this.power < 50 && ok('shields-on')) {
-      return { seat, signal: 'shields-on' }
-    }
-    if (ok('pump-on')) return { seat, signal: 'pump-on' }
-    return { seat, signal: 'brace' }
+    const owned = (Object.keys(SIGNAL_OWNER) as SignalId[]).filter((s) => SIGNAL_OWNER[s] === seat)
+    const harm = owned.find((s) => !s.startsWith('revoke-') && !correct.includes(s))
+    return { seat, signal: harm ?? owned.find((s) => !correct.includes(s)) ?? owned[0]! }
   }
 
   private isSeated(role: StationId): boolean {
@@ -952,11 +963,7 @@ export class Hab {
       case 'brace':
         return 'brace'
       case 'revoke':
-        return action.seat === 'engineer'
-          ? 'revoke-power'
-          : action.seat === 'pilot'
-            ? 'revoke-nav'
-            : null
+        return REVOKE_CARD[action.seat] ?? null
       default:
         return null
     }
@@ -1040,21 +1047,14 @@ export class Hab {
           tone: 'warn',
         }
       }
-      // Reading the badge outranks everything else on her glass.
-      if (fresh && fresh.seal === 'broken') {
-        return { text: 'READ THE SEAL BEFORE YOU MOVE.', tone: 'fight' }
-      }
-      if (fresh && fresh.seal === 'stale') {
-        return { text: 'OLD COUNTER — THIS ORDER ALREADY RAN ONCE.', tone: 'fight' }
-      }
-      if (fresh && fresh.seal === 'sealed' && REVOKE_TARGET[fresh.signal]) {
+      if (fresh && REVOKE_TARGET[fresh.signal]) {
         const seat = REVOKE_TARGET[fresh.signal]!
         return {
           text: `ROTATE ${CREW_META[seat].callsign} — TOKEN TO COMMS`,
           tone: 'fight',
         }
       }
-      if (fresh?.signal === 'pump-off' && fresh.seal === 'sealed' && air < 92) {
+      if (fresh?.signal === 'pump-off' && air < 92) {
         return { text: 'THEY WANT THE PUMP OFF. YOUR AIR SAYS ABSOLUTELY NOT.', tone: 'fight' }
       }
       if (runaway && this.pumpOn && air < 92) {
@@ -1063,16 +1063,15 @@ export class Hab {
       if (air >= 92) return { text: 'TOO MUCH AIR — KILL THE PUMP OR IT SPLITS', tone: 'fight' }
       if (air < 40 && !this.pumpOn) return { text: 'ABSOLUTELY NOT. START THE PUMP.', tone: 'fight' }
       if (air < 48) return { text: 'AIR IS MINE. KEEP THE PUMP ON.', tone: 'fight' }
-      if (fresh && fresh.seal === 'sealed') {
+      if (fresh) {
         const dest = moduleFor(signalSendsTo(fresh.signal))
         return {
           text: dest
-            ? `A PICTURE JUST HIT. RUN TO ${MODULE_SHORT[dest]}.`
-            : 'A PICTURE JUST HIT. THAT IS THE ORDER.',
+            ? `A PICTURE JUST HIT. READ THE SEAL. IT SAYS ${MODULE_SHORT[dest]}.`
+            : 'A PICTURE JUST HIT. READ THE SEAL.',
           tone: 'warn',
         }
       }
-      if (fresh) return { text: 'A PICTURE JUST HIT. READ THE SEAL BEFORE YOU MOVE.', tone: 'warn' }
       return null
     }
 
