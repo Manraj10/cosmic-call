@@ -1,5 +1,3 @@
-import { randomBytes, randomUUID } from "node:crypto";
-import type { Server, Socket } from "socket.io";
 import {
   ITEM_HOME,
   ITEM_LABELS,
@@ -52,7 +50,21 @@ export function makeCode() {
   return `${p}${n}`;
 }
 
-interface Player {
+export function newId() {
+  return crypto.randomUUID();
+}
+
+export function newToken() {
+  const a = new Uint8Array(12);
+  crypto.getRandomValues(a);
+  return Array.from(a, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export interface RoomSink {
+  emitTo(socketId: string, event: string, payload: unknown): void;
+}
+
+export interface Player {
   id: string;
   token: string;
   name: string;
@@ -78,9 +90,38 @@ interface InternalTask {
   confirms: Map<string, { at: number; value: number }>;
 }
 
+export function makeHost(name: string, socketId: string): Player {
+  const id = newId();
+  return {
+    id,
+    token: newToken(),
+    name: (name || "Astronaut").trim().slice(0, 18) || "Astronaut",
+    color: SUIT_COLORS[0]!,
+    avatar: 0,
+    slot: 0,
+    socketId,
+    roleId: null,
+    ready: false,
+    tutorialDone: false,
+    connected: true,
+    astro: {
+      id,
+      health: 100,
+      suitOxygen: 100,
+      radiation: 0,
+      location: "crew",
+      movingTo: null,
+      moveStartsAt: 0,
+      moveEndsAt: 0,
+      inventory: null,
+      incapacitated: false,
+    },
+  };
+}
+
 export class GameRoom {
   code: string;
-  io: Server;
+  sink: RoomSink;
   hostId: string;
   players = new Map<string, Player>();
   phase: ClientState["phase"] = "lobby";
@@ -110,8 +151,8 @@ export class GameRoom {
   lastBroadcast = 0;
   memoryWhispered = false;
 
-  constructor(io: Server, code: string, host: Player) {
-    this.io = io;
+  constructor(sink: RoomSink, code: string, host: Player) {
+    this.sink = sink;
     this.code = code;
     this.hostId = host.id;
     this.seed = (Date.now() ^ Math.floor(Math.random() * 1e9)) >>> 0;
@@ -138,10 +179,10 @@ export class GameRoom {
     if (this.players.size >= MAX_PLAYERS) return null;
     if (this.phase !== "lobby") return null;
     const slot = this.nextSlot();
-    const id = randomUUID();
+    const id = newId();
     const p: Player = {
       id,
-      token: randomBytes(12).toString("hex"),
+      token: newToken(),
       name: name.slice(0, 18),
       color: SUIT_COLORS[slot]!,
       avatar: slot,
@@ -528,9 +569,9 @@ export class GameRoom {
   }
 
   spawnType(type: string, scale: number) {
-    let puzzle = createPuzzle(type, this.rng, this.sim, scale, randomUUID());
+    let puzzle = createPuzzle(type, this.rng, this.sim, scale, newId());
     if (type === "memory_code" && this.earlyAuth) {
-      puzzle = createPuzzle(type, this.rng, this.sim, scale, randomUUID());
+      puzzle = createPuzzle(type, this.rng, this.sim, scale, newId());
       puzzle.solution = this.earlyAuth;
       puzzle.optimal = this.earlyAuth;
       if (puzzle.infoBySystem.comms) {
@@ -690,12 +731,12 @@ export class GameRoom {
 
   whisper(p: Player, text: string) {
     if (!p.socketId) return;
-    this.io.to(p.socketId).emit("toast", { text, tone: "warn" });
+    this.sink.emitTo(p.socketId, "toast", { text, tone: "warn" });
   }
 
   push(tone: TimelineEvent["tone"], text: string) {
     this.timeline.unshift({
-      id: randomUUID(),
+      id: newId(),
       atMs: Date.now(),
       text,
       tone,
@@ -704,9 +745,9 @@ export class GameRoom {
   }
 
   speak(text: string) {
-    this.voice = { id: randomUUID(), text };
+    this.voice = { id: newId(), text };
     void grokLine("mission_control", text).then((line) => {
-      if (line) this.voice = { id: randomUUID(), text: line };
+      if (line) this.voice = { id: newId(), text: line };
     });
   }
 
@@ -802,7 +843,7 @@ export class GameRoom {
     this.lastBroadcast = Date.now();
     for (const p of this.players.values()) {
       if (!p.socketId) continue;
-      this.io.to(p.socketId).emit("state", this.view(p.id));
+      this.sink.emitTo(p.socketId, "state", this.view(p.id));
     }
   }
 }

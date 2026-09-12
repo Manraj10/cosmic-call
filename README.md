@@ -20,11 +20,28 @@ Open [http://127.0.0.1:43221](http://127.0.0.1:43221).
 3. Once two astronauts are aboard, the host starts.
 4. Survive until Rescue ETA `00:00`.
 
-Production:
+Production (local Node):
 
 ```bash
 npm run build
 npm start
+```
+
+## Publish on Cloudflare
+
+Realtime rooms run as **Durable Objects**. The UI is a static export served as Workers Assets.
+
+```bash
+npm run deploy
+```
+
+That builds the static client and runs `wrangler deploy --temporary` (no Cloudflare login required for a 60-minute preview). Open the printed `workers.dev` URL, then the **claim URL** within 60 minutes to keep the account.
+
+Permanent deploy after `wrangler login`:
+
+```bash
+npm run build:cf
+npx wrangler deploy
 ```
 
 ## How it works
@@ -53,5 +70,5 @@ If `XAI_API_KEY` or `GROK_API_KEY` is set, Mission Control lines and the post-ga
 ## Stack
 
 - Next.js + React (player UI)
-- Socket.IO + authoritative Node simulation
+- Authoritative WebSocket simulation (Node locally, Cloudflare Durable Objects in production)
 - Web Audio + speech synthesis for alarms / Mission Control

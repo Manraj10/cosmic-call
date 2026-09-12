@@ -19,6 +19,7 @@ export function GameApp() {
   const [toast, setToast] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const audioOn = useRef(false);
+  const bound = useRef(false);
 
   useEffect(() => {
     const id = setInterval(() => setTick((n) => n + 1), 250);
@@ -27,30 +28,35 @@ export function GameApp() {
 
   useEffect(() => {
     const s = getSocket();
-    const onState = (st: ClientState) => {
-      setState(st);
+    if (bound.current) return;
+    bound.current = true;
+
+    const onState = (st: unknown) => {
+      const next = st as ClientState;
+      setState(next);
       setError(null);
-      if (st.voiceLine) habitatAudio.speak(st.voiceLine.text);
-      if (st.phase === "playing") {
-        const you = st.players.find((p) => p.id === st.you);
-        habitatAudio.setIntensity(st.intensity, st.habitat.dustStorm, (you?.health ?? 100) < 35);
+      if (next.voiceLine) habitatAudio.speak(next.voiceLine.text);
+      if (next.phase === "playing") {
+        const you = next.players.find((p) => p.id === next.you);
+        habitatAudio.setIntensity(next.intensity, next.habitat.dustStorm, (you?.health ?? 100) < 35);
       }
     };
     s.on("state", onState);
-    s.on("joined", (j: { playerId: string; token: string; code: string }) => {
+    s.on("joined", (j) => {
       sessionStorage.setItem(KEY, JSON.stringify(j));
     });
-    s.on("error_msg", (m: string) => {
-      setError(m);
-      if (/unknown mission/i.test(m)) sessionStorage.removeItem(KEY);
+    s.on("error_msg", (m) => {
+      const text = String(m);
+      setError(text);
+      if (/unknown mission/i.test(text)) sessionStorage.removeItem(KEY);
     });
-    s.on("toast", (t: { text: string }) => {
-      setToast(t.text);
+    s.on("toast", (t) => {
+      const body = t as { text: string };
+      setToast(body.text);
       haptic([12, 30, 12]);
       habitatAudio.warn();
       setTimeout(() => setToast(null), 3200);
     });
-    s.connect();
 
     try {
       const saved = sessionStorage.getItem(KEY);
@@ -58,6 +64,7 @@ export function GameApp() {
       if (saved) {
         const j = JSON.parse(saved) as { playerId: string; token: string; code: string };
         if (j.code && j.token && (!q || q.toUpperCase() === j.code)) {
+          s.connect(j.code);
           s.emit("join", { code: j.code, name: "Astronaut", token: j.token });
         }
       }
@@ -73,7 +80,6 @@ export function GameApp() {
     window.addEventListener("pointerdown", arm, { once: true });
 
     return () => {
-      s.off("state", onState);
       window.removeEventListener("pointerdown", arm);
     };
   }, []);
@@ -83,14 +89,29 @@ export function GameApp() {
     getSocket().emit(ev, body);
   };
 
+  const create = async (name: string) => {
+    habitatAudio.click();
+    setError(null);
+    const res = await fetch("/api/create", { method: "POST" });
+    if (!res.ok) {
+      setError("Could not open a mission.");
+      return;
+    }
+    const { code } = (await res.json()) as { code: string };
+    const s = getSocket();
+    s.connect(code);
+    s.emit("create", { name });
+  };
+
+  const join = (name: string, code: string) => {
+    habitatAudio.click();
+    const s = getSocket();
+    s.connect(code);
+    s.emit("join", { name, code, token: readToken() });
+  };
+
   if (!state) {
-    return (
-      <Landing
-        error={error}
-        onCreate={(name) => emit("create", { name })}
-        onJoin={(name, code) => emit("join", { name, code, token: readToken() })}
-      />
-    );
+    return <Landing error={error} onCreate={create} onJoin={join} />;
   }
 
   return (
