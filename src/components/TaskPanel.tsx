@@ -84,7 +84,7 @@ export function TaskPanel({
       )}
 
       {task.youHaveControl && (
-        <Control
+        <TaskControlBoard
           key={task.id}
           control={task.control}
           confirmLocked={blocked}
@@ -117,7 +117,7 @@ function Mini({ k, v }: { k: string; v: string }) {
   );
 }
 
-function Control({
+function TaskControlBoard({
   control,
   confirmLocked,
   lockReason,
@@ -130,125 +130,119 @@ function Control({
   onConfirm: (payload: unknown) => void;
   onHold: (holding: boolean) => void;
 }) {
-  if (control.kind === "stepper") {
-    return (
-      <Stepper
-        label={control.label}
-        unit={control.unit}
-        min={control.min}
-        max={control.max}
-        step={control.step}
-        value={control.value}
-        confirmLocked={confirmLocked}
-        lockReason={lockReason}
-        onGo={(v) => onConfirm(v)}
-      />
-    );
+  switch (control.kind) {
+    case "stepper":
+      return (
+        <Stepper
+          label={control.label}
+          unit={control.unit}
+          min={control.min}
+          max={control.max}
+          step={control.step}
+          value={control.value}
+          confirmLocked={confirmLocked}
+          lockReason={lockReason}
+          onGo={(v) => onConfirm(v)}
+        />
+      );
+    case "sliders":
+      return (
+        <SliderBoard
+          control={control}
+          confirmLocked={confirmLocked}
+          lockReason={lockReason}
+          onGo={(v) => onConfirm(v)}
+        />
+      );
+    case "buttons":
+      return (
+        <div className="grid gap-2">
+          {lockReason && confirmLocked && <LockNote text={lockReason} />}
+          {control.options.map((o) => (
+            <Button key={o.id} disabled={confirmLocked} variant="ghost" className="h-14 w-full" onClick={() => onConfirm(o.id)}>
+              {o.label}
+            </Button>
+          ))}
+        </div>
+      );
+    case "routing":
+      return (
+        <Router
+          nodes={control.nodes}
+          selected={control.selected}
+          confirmLocked={confirmLocked}
+          lockReason={lockReason}
+          onConfirm={onConfirm}
+        />
+      );
+    case "sequence":
+      return (
+        <Sequencer control={control} confirmLocked={confirmLocked} lockReason={lockReason} onConfirm={onConfirm} />
+      );
+    case "hold":
+      return (
+        <div>
+          {lockReason && confirmLocked && <LockNote text={lockReason} />}
+          <button
+            disabled={confirmLocked}
+            className="h-20 w-full rounded-xl bg-gradient-to-b from-orange-400 to-red-600 font-display text-2xl text-black shadow-[0_0_30px_rgba(255,80,20,0.45)] active:scale-[0.99]"
+            onPointerDown={() => onHold(true)}
+            onPointerUp={() => onHold(false)}
+            onPointerLeave={() => onHold(false)}
+            onPointerCancel={() => onHold(false)}
+          >
+            {control.label}
+            <div className="mt-1 h-2 overflow-hidden rounded bg-black/30">
+              <div className="h-full bg-white" style={{ width: `${control.progress * 100}%` }} />
+            </div>
+            <div className="font-mono text-xs">
+              Holding: {control.holding.length ? control.holding.join(", ") : "none"}
+            </div>
+          </button>
+        </div>
+      );
+    case "dual_confirm":
+      return (
+        <Stepper
+          label={control.prompt}
+          unit={control.unit || ""}
+          min={control.min ?? 0}
+          max={control.max ?? 99}
+          step={control.step ?? 1}
+          value={control.value}
+          confirmLocked={confirmLocked}
+          lockReason={lockReason}
+          confirmLabel="CONFIRM"
+          onGo={(v) => onConfirm({ value: v })}
+        />
+      );
+    case "pattern":
+      return (
+        <Stepper
+          label={control.prompt}
+          unit=""
+          min={control.min}
+          max={control.max}
+          step={1}
+          value={control.value}
+          confirmLocked={confirmLocked}
+          lockReason={lockReason}
+          onGo={(v) => onConfirm(v)}
+        />
+      );
+    case "code":
+      return (
+        <CodePad
+          digits={control.digits}
+          value={control.value}
+          confirmLocked={confirmLocked}
+          lockReason={lockReason}
+          onConfirm={onConfirm}
+        />
+      );
+    default:
+      return null;
   }
-  if (control.kind === "sliders") {
-    return (
-      <SliderBoard
-        control={control}
-        confirmLocked={confirmLocked}
-        lockReason={lockReason}
-        onGo={(v) => onConfirm(v)}
-      />
-    );
-  }
-  if (control.kind === "buttons") {
-    return (
-      <div className="grid gap-2">
-        {lockReason && confirmLocked && <LockNote text={lockReason} />}
-        {control.options.map((o) => (
-          <Button key={o.id} disabled={confirmLocked} variant="ghost" className="h-14 w-full" onClick={() => onConfirm(o.id)}>
-            {o.label}
-          </Button>
-        ))}
-      </div>
-    );
-  }
-  if (control.kind === "routing") {
-    return (
-      <Router
-        nodes={control.nodes}
-        selected={control.selected}
-        confirmLocked={confirmLocked}
-        lockReason={lockReason}
-        onConfirm={onConfirm}
-      />
-    );
-  }
-  if (control.kind === "sequence") {
-    return (
-      <Sequencer control={control} confirmLocked={confirmLocked} lockReason={lockReason} onConfirm={onConfirm} />
-    );
-  }
-  if (control.kind === "hold") {
-    return (
-      <div>
-        {lockReason && confirmLocked && <LockNote text={lockReason} />}
-        <button
-          disabled={confirmLocked}
-          className="h-20 w-full rounded-xl bg-gradient-to-b from-orange-400 to-red-600 font-display text-2xl text-black shadow-[0_0_30px_rgba(255,80,20,0.45)] active:scale-[0.99]"
-          onPointerDown={() => onHold(true)}
-          onPointerUp={() => onHold(false)}
-          onPointerLeave={() => onHold(false)}
-          onPointerCancel={() => onHold(false)}
-        >
-          {control.label}
-          <div className="mt-1 h-2 overflow-hidden rounded bg-black/30">
-            <div className="h-full bg-white" style={{ width: `${control.progress * 100}%` }} />
-          </div>
-          <div className="font-mono text-xs">
-            Holding: {control.holding.length ? control.holding.join(", ") : "none"}
-          </div>
-        </button>
-      </div>
-    );
-  }
-  if (control.kind === "dual_confirm") {
-    return (
-      <Stepper
-        label={control.prompt}
-        unit={control.unit || ""}
-        min={control.min ?? 0}
-        max={control.max ?? 99}
-        step={control.step ?? 1}
-        value={control.value}
-        confirmLocked={confirmLocked}
-        lockReason={lockReason}
-        confirmLabel="CONFIRM"
-        onGo={(v) => onConfirm({ value: v })}
-      />
-    );
-  }
-  if (control.kind === "pattern") {
-    return (
-      <Stepper
-        label={control.prompt}
-        unit=""
-        min={control.min}
-        max={control.max}
-        step={1}
-        value={control.value}
-        confirmLocked={confirmLocked}
-        lockReason={lockReason}
-        onGo={(v) => onConfirm(v)}
-      />
-    );
-  }
-  if (control.kind === "code") {
-    return (
-      <CodePad
-        digits={control.digits}
-        value={control.value}
-        confirmLocked={confirmLocked}
-        lockReason={lockReason}
-        onConfirm={onConfirm}
-      />
-    );
-  }
-  return null;
 }
 
 function LockNote({ text }: { text: string }) {
@@ -318,7 +312,9 @@ function Stepper({
       holdRef.current = window.setInterval(() => bump(d), 110);
     }, 320);
   };
-  useEffect(() => () => stopHold(), []);
+  useEffect(() => {
+    return () => stopHold();
+  }, []);
 
   return (
     <div className="space-y-3">
@@ -343,7 +339,7 @@ function Stepper({
           onPointerCancel={stopHold}
           onLostPointerCapture={stopHold}
         >
-          −
+          -
         </button>
         <div className="flex-1 text-center">
           <input
