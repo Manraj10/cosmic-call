@@ -285,6 +285,9 @@ export class Hab {
     // because a broken seal is the cheap lesson; the stolen key lands last,
     // once they have stopped reading the badge.
     const wake = 26 + Math.floor(this.rng() * 4)
+    // The theft waits until the table has finished bracing, so the NOT YOU shout
+    // and the BRACE call never land in the same breath.
+    const steal = Math.max(58, stormWarnAt + stormLead + 3)
     return [
       { t: 8, kind: 'leak', valve: firstValve },
       { t: 24, kind: 'runaway' },
@@ -293,9 +296,9 @@ export class Hab {
       { t: stormWarnAt, kind: 'storm', eta: stormLead },
       { t: stormWarnAt + 6, kind: 'ghost-replay' },
       { t: stormWarnAt + stormLead, kind: 'impact' },
-      { t: 58, kind: 'ghost-steal' },
-      { t: 64, kind: 'ghost-forge' },
-      { t: 73, kind: 'ghost-forge' },
+      { t: steal, kind: 'ghost-steal' },
+      { t: steal + 6, kind: 'ghost-forge' },
+      { t: steal + 15, kind: 'ghost-forge' },
       { t: 82, kind: 'leak', valve: secondValve },
     ].sort((a, b) => a.t - b.t) as ScriptEvent[]
   }
@@ -718,6 +721,9 @@ export class Hab {
   private obeyCheck(action: ClientAction) {
     const asked = this.askedBy(action)
     if (!asked) return
+    // A genuine order for the same thing is on the glass, so she is following
+    // that one. GHOST's replay of a real SHIELDS lands right as she raises them.
+    if (this.signals.some((s) => s.signal === asked && s.seal === 'sealed' && Date.now() - s.at < 8000)) return
     const live = new Set(
       this.signals.filter((s) => s.fresh && s.seal !== 'sealed').map((s) => s.signal),
     )
