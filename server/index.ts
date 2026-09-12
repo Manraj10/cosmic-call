@@ -1,5 +1,5 @@
-import { createServer } from "node:http";
-import { parse } from "node:url";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { parse, type UrlWithParsedQuery } from "node:url";
 import next from "next";
 import {
   applyClientEvent,
@@ -36,9 +36,9 @@ function json(res: import("node:http").ServerResponse, data: unknown, status = 2
 }
 
 async function handleReq(
-  req: import("node:http").IncomingMessage,
-  res: import("node:http").ServerResponse,
-  handle: ReturnType<ReturnType<typeof next>["getRequestHandler"]>,
+  req: IncomingMessage,
+  res: ServerResponse,
+  handle: (req: IncomingMessage, res: ServerResponse, parsed: UrlWithParsedQuery) => Promise<void> | void,
 ) {
   const parsed = parse(req.url || "/", true);
   const path = parsed.pathname || "/";

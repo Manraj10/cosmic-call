@@ -50,18 +50,16 @@ export class Mailbox {
     if (ready.length) return Promise.resolve(ready);
     if (!this.q.has(sid)) return Promise.resolve([]);
     return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        if (this.waiters.get(sid) === wake) this.waiters.delete(sid);
-        resolve(this.drain(sid));
-      }, cap);
-      const wake = () => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        if (this.waiters.get(sid) === finish) this.waiters.delete(sid);
         clearTimeout(timer);
-        if (this.waiters.get(sid) === wake) this.waiters.delete(sid);
         resolve(this.drain(sid));
       };
-      const prev = this.waiters.get(sid);
-      this.waiters.set(sid, wake);
-      if (prev) prev();
+      const timer = setTimeout(finish, cap);
+      this.waiters.set(sid, finish);
     });
   }
 
@@ -88,7 +86,7 @@ export function applyClientEvent(slot: RoomSlot, sid: string, event: string, dat
     }
     const host = makeHost(String(data.name || (data.monitor ? "Habitat Screen" : "Astronaut")), sid, data.monitor ? "monitor" : "astronaut");
     slot.room = new GameRoom(slot.mailbox.sink(), slot.code, host);
-    send("joined", { playerId: host.id, token: host.token, code: slot.code });
+    send("joined", { playerId: host.id, token: host.token, code: slot.code, monitor: host.kind === "monitor" });
     slot.room.broadcast();
     return;
   }

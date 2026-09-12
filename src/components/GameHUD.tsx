@@ -24,7 +24,7 @@ export function GameHUD({
   onConfirm,
   onHold,
   onRevive,
-  clockSkew,
+  clockSkew = 0,
 }: {
   state: ClientState;
   onMove: (room: RoomId) => void;
@@ -34,7 +34,7 @@ export function GameHUD({
   onConfirm: (taskId: string, payload: unknown) => void;
   onHold: (taskId: string, holding: boolean) => void;
   onRevive: (id: string) => void;
-  clockSkew: number;
+  clockSkew?: number;
 }) {
   const you = state.players.find((p) => p.id === state.you);
   const [tab, setTab] = useState<"map" | "task" | "crew">("map");

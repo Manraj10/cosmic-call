@@ -2,11 +2,11 @@
 
 A 2–4 player cooperative Mars survival game. A rescue vehicle arrives in **7 minutes**. Until then, the crew has to keep a damaged habitat alive — while **no single astronaut has the whole picture**.
 
-Talk out loud. Move between modules. Carry the one item you can hold. Solve exact puzzles. Survive the cascade.
+Talk out loud. **Tap modules to walk.** Carry the one item you can hold. Solve exact puzzles. Survive the cascade.
 
 ## Play
 
-You need **at least two astronauts**. A computer can host the **habitat screen** (map + room code) without taking a crew seat. Astronauts join from phones.
+You need **at least two astronauts**. A computer can host the shared **Habitat Monitor** without taking a crew seat.
 
 ```bash
 npm install
@@ -15,10 +15,12 @@ npm run dev
 
 Open [http://127.0.0.1:43221](http://127.0.0.1:43221).
 
-1. On the TV or laptop, hit **HOST HABITAT SCREEN** and share the room code / QR. That machine is not an astronaut.
-2. Players hit **JOIN AS ASTRONAUT** (or **CREATE AND PLAY** if you want a seat on the same device).
-3. Once two astronauts are aboard, the host starts.
-4. Tap a habitat module (or the O₂ / PWR / MED strip) to walk there. Survive until Rescue ETA `00:00`.
+1. On a TV/laptop hit **OPEN HABITAT MONITOR** (does not count as a player) and share the room code / QR.
+2. Phones hit **JOIN MISSION** and board as astronauts.
+3. Or **CREATE & BOARD AS ASTRONAUT** if this device is also playing.
+4. Once **two astronauts** are aboard, the host starts. Monitor screens are not crew.
+5. Tap a habitat module (or the chips under the map) to walk. Consoles only work if you are standing in that room.
+6. Survive until Rescue ETA `00:00`.
 
 Production (local Node):
 
@@ -37,6 +39,8 @@ npm run deploy
 
 That builds the static client and runs `wrangler deploy --temporary` (no Cloudflare login required for a 60-minute preview). Open the printed `workers.dev` URL, then the **claim URL** within 60 minutes to keep the account.
 
+If deploy returns **401**, delete `~/.config/.wrangler/wrangler-temporary-account.toml` and run `npx wrangler deploy --temporary` again (new hostname).
+
 Permanent deploy after `wrangler login`:
 
 ```bash
@@ -44,13 +48,15 @@ npm run build:cf
 npx wrangler deploy
 ```
 
+Clients use **long-poll GET `/sync`** (not 220ms hammering). If Cloudflare Bot Fight returns a non-JSON **403**, hard-refresh and retry JOIN — the radio will wait and re-hello.
+
 ## How it works
 
 The **server owns the habitat**. Clients send actions. The engine validates them, steps oxygen / power / heat / pressure / health, and broadcasts the result.
 
-Exact numbers live on **personal boards**. The shared map only shows STABLE / WARNING / CRITICAL, astronauts moving, and world reactions (dust, dim lights, frost, solar slew, comms glitch).
+Exact numbers live on **personal boards**. The shared map only shows STABLE / WARNING / CRITICAL, astronauts walking between modules, and world reactions (dust, dim lights, frost, solar slew, comms glitch).
 
-Puzzles are **deterministic**. If a setting is bad, the simulation explains the physics — it never shrugs and says “wrong.”
+Puzzles are **deterministic**. Every task shows the physical tradeoff and the one plausible action (for oxygen: match crew use + leak — cranking O₂ higher is not safer, it steals power). If a setting is bad, the simulation explains the physics — it never shrugs and says “wrong.”
 
 ## Roles
 
@@ -61,7 +67,7 @@ Puzzles are **deterministic**. If a setting is bad, the simulation explains the 
 | A3 | Thermal + Exterior | Comms + Exterior | |
 | A4 | Comms + Medical | | |
 
-Fewer players still run every major system. Timers stretch a little, movement is faster, and the director caps overlapping emergencies.
+Fewer players still run every major system. Timers stretch a little, movement is faster, and the director caps overlapping emergencies. A Habitat Monitor does not receive a role.
 
 ## Optional Grok
 
@@ -70,5 +76,5 @@ If `XAI_API_KEY` or `GROK_API_KEY` is set, Mission Control lines and the post-ga
 ## Stack
 
 - Next.js + React (player UI)
-- Authoritative HTTP radio (short GET polls) — Node locally, Cloudflare Durable Objects in production. WebSockets are not used; temporary `workers.dev` hosts block them.
+- Authoritative HTTP radio (long-poll GET `/sync`) — Node locally, Cloudflare Durable Objects in production. WebSockets are not used; temporary `workers.dev` hosts block them.
 - Web Audio + speech synthesis for alarms / Mission Control
