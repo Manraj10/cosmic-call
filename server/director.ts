@@ -36,7 +36,19 @@ async function withTimeout<T>(p: Promise<T>, ms = BUDGET_MS): Promise<T | null> 
 function firstLine(text: string | null | undefined): string | null {
   if (!text) return null
   const line = text.trim().split('\n')[0]?.replace(/^["']|["']$/g, '').trim()
-  return line && line.length > 3 ? line.slice(0, 240) : null
+  if (!line || line.length <= 3) return null
+  // A radio line is one or two sentences; never cut one off mid-word on the debrief card.
+  const two = line.split(/(?<=[.!?])\s+/).slice(0, 2).join(' ')
+  return two.length <= 240 ? two : `${two.slice(0, 237).replace(/\s+\S*$/, '')}…`
+}
+
+/** The last line that reads like radio, not like a model planning out loud ("1. **Analyze the Request:**"). */
+function spokenLine(text: string): string | null {
+  const lines = text
+    .split('\n')
+    .map((l) => l.replace(/\*\*/g, '').trim())
+    .filter((l) => l.length > 12 && !/^(\d+[.)]|[-*#>]|analy|step|draft|thinking|the user|let me|okay|we need|i need|request)/i.test(l))
+  return firstLine(lines.at(-1))
 }
 
 /** Anything that speaks the OpenAI chat-completions shape. */
@@ -69,8 +81,15 @@ function openAiish(
       if (!r.ok) return null
       const j = (await r.json()) as { choices?: { message?: { content?: string } }[] }
       // Reasoning models sometimes leave their thinking inline; only what follows it is the line.
-      const raw = j.choices?.[0]?.message?.content ?? ''
-      return firstLine(raw.includes('</think>') ? raw.split('</think>').pop() : raw)
+      let raw = j.choices?.[0]?.message?.content ?? ''
+      if (raw.includes('</think>')) raw = raw.split('</think>').pop() ?? ''
+      try {
+        const line = (JSON.parse(raw) as { line?: unknown }).line
+        if (typeof line === 'string') return firstLine(line)
+      } catch {
+        /* not JSON: fall through to the line filter */
+      }
+      return spokenLine(raw)
     },
   }
 }
@@ -119,7 +138,15 @@ function providers(): Provider[] {
       `${process.env.IFM_BASE_URL || 'https://api.ifm.ai/v1'}/chat/completions`,
       process.env.IFM_API_KEY,
       process.env.IFM_MODEL || 'IFM/K2-Horizon-375B-A23B',
-      { max_tokens: 600, reasoning_effort: 'low', temperature: 0.7 },
+      {
+        max_tokens: 600,
+        reasoning_effort: 'low',
+        temperature: 0.7,
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: 'line', schema: { type: 'object', properties: { line: { type: 'string' } }, required: ['line'] } },
+        },
+      },
       9000,
     ),
     gemini(),
@@ -149,7 +176,25 @@ export interface DebriefFacts {
  * the engine already produced, so the model is describing a result rather than
  * deciding one.
  */
-export async function debriefLine(f: DebriefFacts): Promise<{ text: string; by: string }> {
+const inFlight = new Map<string, Promise<{ text: string; by: string }>>()
+
+/**
+ * Every phone asks for the debrief the moment the round ends. They share one model
+ * call, so the table hears one line and the provider sees one request, not four
+ * (K2 rate-limits parallel calls).
+ */
+export function debriefLine(f: DebriefFacts): Promise<{ text: string; by: string }> {
+  const key = JSON.stringify(f)
+  let p = inFlight.get(key)
+  if (!p) {
+    p = writeDebrief(f)
+    inFlight.set(key, p)
+    setTimeout(() => inFlight.delete(key), 120_000)
+  }
+  return p
+}
+
+async function writeDebrief(f: DebriefFacts): Promise<{ text: string; by: string }> {
   const prompt = [
     `Outcome: ${f.won ? 'habitat survived' : 'habitat lost'}.`,
     `${f.delivered} orders reached the operator. ${f.forged} were forged by an intruder on the comms bus.`,
