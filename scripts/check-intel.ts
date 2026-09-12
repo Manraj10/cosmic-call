@@ -1,3 +1,4 @@
+import { applyCascadeRipple, stampIncident } from "../server/game/cascade";
 import { createSim } from "../server/game/simulation";
 import { createPuzzle, intelFor } from "../server/game/puzzles";
 import type { SystemId } from "../src/shared/constants";
@@ -44,3 +45,14 @@ assert(!split.ib.some((l) => /critical requirement/.test(l)), "operator must not
 assert(split.ia.filter((l) => /critical requirement/.test(l)).length >= 5, "intel player gets all five draws");
 
 console.log("intel split ok");
+
+const o2p = createPuzzle("oxygen_leak", rng, sim, 1, "o2");
+const heat = createPuzzle("heater", rng, sim, 1, "ht");
+stampIncident(o2p);
+stampIncident(heat);
+assert(o2p.incidentId === heat.incidentId, "O2 and heater share a hull-breach incident");
+assert(o2p.incidentTitle === "HULL BREACH", "incident titled hull breach");
+const rip = applyCascadeRipple(o2p, { optimal: false, wasted: true }, [heat]);
+assert(Number(heat.solution) > 0 && /THERMAL/.test(rip.pulse), "O2 overshoot must change the heater number");
+assert(rip.tightenMs > 0, "partner timer should tighten after a wasted solve");
+console.log("cascade ripple ok");

@@ -11,32 +11,41 @@ export function TaskPanel({
   onUpdate: _onUpdate,
   onConfirm,
   onHold,
+  onWalk,
+  compact = false,
 }: {
   task: TaskView;
   onUpdate: (payload: unknown) => void;
   onConfirm: (payload: unknown) => void;
   onHold: (holding: boolean) => void;
+  onWalk?: () => void;
+  compact?: boolean;
 }) {
   const secs = Math.ceil(task.timerMs / 1000);
   const blocked = Boolean(task.waitingOn) || !task.youHaveControl;
   const late = task.expired || secs <= 0;
+  const walkLock = Boolean(task.youHaveControl && task.requiredRoom && !task.youInRoom);
 
   return (
     <div
       className={cn(
-        "glass flex flex-col gap-3 rounded-xl p-3 sm:p-4",
+        "glass flex flex-col gap-2 rounded-xl p-3 sm:gap-3 sm:p-4",
         task.youInRoom && task.youHaveControl && "border-cyan-300/50",
         task.severity === "critical" && "border-red-500/50 crit-pulse",
         task.severity === "urgent" && !task.youInRoom && "border-amber-400/40",
       )}
     >
+      <div className="font-mono text-[10px] tracking-[0.28em] text-orange-300">
+        {task.incidentTitle}
+        {task.partnerTitle ? ` · ${task.title} + ${task.partnerTitle}` : ""}
+      </div>
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="font-display text-[10px] tracking-[0.35em] text-amber-300">
             {late ? "LATE" : task.severity.toUpperCase()}
             {task.youHaveControl ? " · YOUR DIAL" : " · SAY THIS"}
           </div>
-          <h3 className="font-display text-xl text-white sm:text-2xl">⚠ {task.title}</h3>
+          <h3 className="font-display text-xl text-white sm:text-2xl">{task.title}</h3>
         </div>
         <div
           className={cn(
@@ -47,6 +56,18 @@ export function TaskPanel({
           {late ? "LATE" : `${secs}s`}
         </div>
       </div>
+
+      {task.incidentCause && (
+        <p className="text-xs text-white/75">{task.incidentCause}</p>
+      )}
+      {task.cascadePulse && (
+        <p className="rounded border border-amber-400/35 bg-amber-400/10 px-2 py-1.5 text-xs text-amber-50">
+          {task.cascadePulse}
+        </p>
+      )}
+      {task.sameHole && !compact && (
+        <p className="text-[11px] leading-snug text-orange-100/90">{task.sameHole}</p>
+      )}
 
       {task.youHaveControl && (
         <TaskControlBoard
@@ -59,39 +80,54 @@ export function TaskPanel({
         />
       )}
 
-      <p className="font-mono text-xs tracking-wide text-cyan-200">{task.howTo}</p>
-
-      <div>
-        <div className="font-mono text-[10px] tracking-[0.25em] text-cyan-300/70">
-          {task.youHaveControl ? "YOUR NUMBERS" : "READ OUT LOUD"}
-        </div>
-        <ul className="mt-1 space-y-1">
-          {task.availableInfo.map((l) => (
-            <li key={l} className="rounded bg-cyan-400/10 px-2 py-1.5 font-display text-sm text-white">
-              {l}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {task.youHaveControl && (
-        <p className="text-xs text-orange-200/90">{task.askCrew}</p>
+      {walkLock && onWalk && (
+        <Button className="h-14 w-full text-base" variant="warn" onClick={onWalk}>
+          WALK TO {task.requiredRoom ? ROOM_LABELS[task.requiredRoom].toUpperCase() : "CONSOLE"}
+        </Button>
       )}
 
-      <p className="rounded border border-orange-400/25 bg-orange-400/10 px-2 py-1.5 text-xs text-orange-50">
-        TRADE: {task.trade}
-      </p>
+      {task.youHaveControl ? (
+        <div>
+          <div className="font-mono text-[10px] tracking-[0.25em] text-cyan-300/70">ON YOUR BOARD</div>
+          <ul className="mt-1 space-y-1">
+            {task.availableInfo.map((l) => (
+              <li key={l} className="rounded bg-cyan-400/10 px-2 py-1.5 font-display text-sm text-white">
+                {l}
+              </li>
+            ))}
+          </ul>
+          <ul className="mt-2 space-y-0.5">
+            {task.worksheet.map((l) => (
+              <li key={l} className="font-mono text-[11px] text-cyan-100/80">
+                {l}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <div>
+          <div className="font-mono text-[10px] tracking-[0.25em] text-amber-300">{task.shoutLabel}</div>
+          <ul className="mt-1 space-y-2">
+            {task.availableInfo.map((l) => (
+              <li
+                key={l}
+                className="rounded-lg border border-amber-400/40 bg-amber-400/15 px-3 py-3 font-display text-lg leading-snug text-white"
+              >
+                {l}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 font-mono text-[11px] text-white/55">{task.worksheet[0]}</p>
+        </div>
+      )}
 
-      {task.requiredRoom && (
+      {task.requiredItem && (
         <div className="text-xs text-amber-200/90">
-          {task.youInRoom
-            ? `At ${ROOM_LABELS[task.requiredRoom]}`
-            : `Walk to ${ROOM_LABELS[task.requiredRoom]}`}
-          {task.requiredItem ? ` · ${ITEM_LABELS[task.requiredItem]}` : ""}
+          {task.youHaveItem ? `Holding ${ITEM_LABELS[task.requiredItem]}` : `Need ${ITEM_LABELS[task.requiredItem]}`}
         </div>
       )}
 
-      {task.waitingOn && (
+      {task.waitingOn && !walkLock && (
         <div className="rounded-md border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-sm text-amber-100">
           {task.waitingOn}
         </div>

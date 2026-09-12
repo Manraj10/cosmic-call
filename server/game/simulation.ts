@@ -61,6 +61,7 @@ export interface Sim {
   closestCall: string;
   log: string[];
   chains: string[];
+  cascadePulse: string;
 }
 
 export function createSim(now: number): Sim {
@@ -102,6 +103,7 @@ export function createSim(now: number): Sim {
     closestCall: "Systems nominal at hatch open.",
     log: [],
     chains: [],
+    cascadePulse: "",
   };
 }
 

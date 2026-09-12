@@ -30,6 +30,12 @@ export interface PuzzleInstance {
   voice?: string;
   mc?: string;
   chain: string[];
+  incidentId?: string;
+  incidentTitle?: string;
+  incidentCause?: string;
+  partnerType?: string;
+  partnerTitle?: string;
+  sameHole?: string;
 }
 
 export interface ApplyResult {

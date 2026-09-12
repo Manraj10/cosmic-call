@@ -61,17 +61,19 @@ export function HabitatMonitor({
               </li>
             ))}
           </ul>
-          <div className="font-mono text-[10px] tracking-[0.3em] text-amber-300">ALARMS</div>
-          {state.emergencies.length === 0 && <div className="text-xs text-white/40">Quiet — for now.</div>}
-          {state.emergencies.map((e) => (
-            <div key={e.id} className="rounded bg-red-500/10 px-2 py-1 text-xs text-red-200">
-              {e.title}
+          <div className="font-mono text-[10px] tracking-[0.3em] text-amber-300">FAILURE</div>
+          {state.incident && (
+            <div className="rounded border border-orange-400/30 bg-orange-400/10 p-2 text-xs text-orange-50">
+              <div className="font-display text-sm text-orange-200">{state.incident.title}</div>
+              <p className="mt-1">{state.incident.cause}</p>
+              {state.incident.pulse && <p className="mt-1 text-amber-100">{state.incident.pulse}</p>}
             </div>
-          ))}
+          )}
+          {state.emergencies.length === 0 && !state.incident && <div className="text-xs text-white/40">Quiet — for now.</div>}
           {state.tasks.filter((t) => !t.expired).map((t) => (
             <div key={t.id} className="rounded border border-amber-400/30 bg-amber-400/10 p-2 text-xs text-amber-50">
               <div className="font-display text-sm">{t.title}</div>
-              <p className="mt-1 text-white/80">{t.trade}</p>
+              <p className="mt-1 text-white/80">{t.sameHole || t.trade}</p>
             </div>
           ))}
           {state.youAreHost && state.phase === "lobby" && (

@@ -100,12 +100,14 @@ export function HabitatMap({
   onPickup,
   clockSkew = 0,
   interactive = true,
+  compact = false,
 }: {
   state: ClientState;
   onMove: (room: RoomId) => void;
   onPickup: (itemId: string) => void;
   clockSkew?: number;
   interactive?: boolean;
+  compact?: boolean;
 }) {
   const h = state.habitat;
   const you = state.players.find((p) => p.id === state.you);
@@ -113,10 +115,11 @@ export function HabitatMap({
   const rooms = Object.keys(LAYOUT) as RoomId[];
 
   return (
-    <div className="flex h-full min-h-[320px] flex-col">
+    <div className={cn("flex h-full flex-col", compact ? "min-h-0" : "min-h-[320px]")}>
       <div
         className={cn(
-          "relative min-h-[280px] flex-1 overflow-hidden rounded-xl border border-cyan-400/25",
+          "relative flex-1 overflow-hidden rounded-xl border border-cyan-400/25",
+          compact ? "min-h-[140px]" : "min-h-[280px]",
           h.emergencyLights && "flicker",
         )}
         style={{
@@ -466,7 +469,7 @@ export function HabitatMap({
       </div>
 
       {interactive && (
-        <div className="mt-2 flex flex-wrap gap-1">
+        <div className={cn("flex flex-wrap gap-1", compact ? "mt-1" : "mt-2")}>
           {rooms.map((id) => {
             const here = you?.location === id;
             const dest = you?.movingTo === id;
@@ -476,7 +479,8 @@ export function HabitatMap({
                 type="button"
                 onClick={() => onMove(id)}
                 className={cn(
-                  "h-10 min-w-[3.2rem] flex-1 rounded-md border px-2 font-display text-[11px] tracking-widest",
+                  "min-w-[3.2rem] flex-1 rounded-md border px-2 font-display tracking-widest",
+                  compact ? "h-9 text-[10px]" : "h-10 text-[11px]",
                   here
                     ? "border-cyan-300 bg-cyan-400 text-black"
                     : dest
@@ -490,7 +494,7 @@ export function HabitatMap({
           })}
         </div>
       )}
-      {interactive && you && state.items.filter((it) => it.location === you.location).length > 0 && (
+      {interactive && !compact && you && state.items.filter((it) => it.location === you.location).length > 0 && (
         <div className="mt-2 space-y-1">
           {state.items
             .filter((it) => it.location === you.location)
@@ -506,13 +510,15 @@ export function HabitatMap({
             ))}
         </div>
       )}
-      <div className="mt-1 font-mono text-[10px] tracking-[0.25em] text-cyan-200/60">
-        {interactive
-          ? you?.movingTo
-            ? `WALKING ${ROOM_LABELS[you.location].toUpperCase()} → ${ROOM_LABELS[you.movingTo].toUpperCase()}`
-            : "YELLOW TAGS ARE KITS — TAP THE TAG OR THE GRAB BUTTON"
-          : "HABITAT MONITOR — CREW WALKS FROM THEIR DEVICES"}
-      </div>
+      {!compact && (
+        <div className="mt-1 font-mono text-[10px] tracking-[0.25em] text-cyan-200/60">
+          {interactive
+            ? you?.movingTo
+              ? `WALKING ${ROOM_LABELS[you.location].toUpperCase()} → ${ROOM_LABELS[you.movingTo].toUpperCase()}`
+              : "YELLOW TAGS ARE KITS — TAP THE TAG OR THE GRAB BUTTON"
+            : "HABITAT MONITOR — CREW WALKS FROM THEIR DEVICES"}
+        </div>
+      )}
     </div>
   );
 }

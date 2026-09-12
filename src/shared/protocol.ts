@@ -210,6 +210,13 @@ export interface TaskView {
   control: TaskControl;
   waitingOn: string;
   expired: boolean;
+  incidentTitle: string;
+  incidentCause: string;
+  partnerTitle: string;
+  sameHole: string;
+  cascadePulse: string;
+  worksheet: string[];
+  shoutLabel: string;
 }
 
 export interface RoleCard {
@@ -287,6 +294,7 @@ export interface ClientState {
   roomFull: boolean;
   playerCount: number;
   intensity: number;
+  incident: { title: string; cause: string; pulse: string } | null;
 }
 
 export type ClientEvent =

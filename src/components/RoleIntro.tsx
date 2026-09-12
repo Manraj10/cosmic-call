@@ -27,10 +27,10 @@ export function RoleIntro({ state, onReady }: { state: ClientState; onReady: () 
         <p className="mt-5 text-sm text-white/80">YOUR TEAM DEPENDS ON YOU TO: {card.depends}</p>
         <p className="mt-3 text-sm font-semibold text-amber-300">BUT: {card.warning}</p>
         <p className="mt-4 rounded-md border border-orange-400/25 bg-orange-400/10 px-3 py-2 text-xs text-orange-50">
-          Two crises at once. Watts you spend are watts someone else needs. Do not show your screen.
+          Failures come as one hole with two consoles. If you overshoot, their number changes — it is the same wound, not a second game.
         </p>
         <p className="mt-2 rounded-md border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs text-cyan-50">
-          Tap a module to walk. Yellow tags are kits — tap GRAB. Spin the dial anywhere; CONFIRM only in that room.
+          Phone: map stays up. Walk with WALK TO or tap a module. Shout the big numbers. Confirm only in that room.
         </p>
         <div className="mt-6 flex items-center justify-between">
           <div className="font-mono text-cyan-200/60">{you?.name}</div>

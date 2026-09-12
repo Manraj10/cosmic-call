@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ITEM_LABELS, ROOM_LABELS, SYSTEM_LABELS, type RoomId, type SystemId } from "@/shared/constants";
 import type { ClientState } from "@/shared/protocol";
 import { formatEta, haptic } from "@/lib/utils";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const STATUS_COLOR = {
   STABLE: "text-cyan-300",
@@ -37,12 +37,27 @@ export function GameHUD({
   clockSkew?: number;
 }) {
   const you = state.players.find((p) => p.id === state.you);
-  const [tab, setTab] = useState<"map" | "task" | "crew">("map");
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [crewOpen, setCrewOpen] = useState(false);
   const myTasks = useMemo(
     () => state.tasks.filter((t) => t.assignedToYou || t.youHaveControl || t.availableInfo.length),
     [state.tasks],
   );
-  const atConsole = myTasks.some((t) => t.youHaveControl && t.youInRoom);
+  const focus =
+    myTasks.find((t) => t.id === focusId) ||
+    myTasks.find((t) => t.youHaveControl && t.youInRoom) ||
+    myTasks.find((t) => t.youHaveControl) ||
+    myTasks[0];
+  const atConsole = Boolean(focus?.youHaveControl && focus.youInRoom);
+  const prevLoc = useRef(you?.location);
+  useEffect(() => {
+    const loc = you?.location;
+    if (loc && loc !== prevLoc.current) {
+      const at = myTasks.find((t) => t.youHaveControl && t.requiredRoom === loc);
+      if (at) setFocusId(at.id);
+    }
+    prevLoc.current = loc;
+  }, [you?.location, myTasks]);
   const floorItems = state.items.filter((it) => it.location === you?.location);
   const eta = formatEta(state.rescueEtaMs);
   const late = state.rescueEtaMs < 120000;
@@ -93,7 +108,16 @@ export function GameHUD({
           <Sys k="THERMAL" v={state.habitat.thermal} />
           <Sys k="COMMS" v={state.habitat.comms} />
           <div className="font-mono text-[10px] text-white/45">CABIN {state.habitat.tempC.toFixed(0)}°C</div>
-          <div className="mt-2 font-mono text-[10px] tracking-[0.3em] text-amber-300">LIVE CRISES</div>
+          {state.incident && (
+            <div className="rounded border border-orange-400/30 bg-orange-400/10 p-2">
+              <div className="font-mono text-[9px] tracking-widest text-orange-300">{state.incident.title}</div>
+              <p className="mt-1 text-xs text-orange-50">{state.incident.cause || state.incident.pulse}</p>
+              {state.incident.cause && state.incident.pulse && (
+                <p className="mt-1 text-[11px] text-amber-100">{state.incident.pulse}</p>
+              )}
+            </div>
+          )}
+          <div className="mt-2 font-mono text-[10px] tracking-[0.3em] text-amber-300">LIVE FAILURE</div>
           {state.emergencies.length === 0 && <div className="text-xs text-white/40">None yet. Talk anyway.</div>}
           {state.emergencies.map((e) => (
             <div key={e.id} className="rounded bg-red-500/10 px-2 py-1 text-xs text-red-200">
@@ -136,72 +160,99 @@ export function GameHUD({
               onUpdate={(p) => onUpdate(task.id, p)}
               onConfirm={(p) => onConfirm(task.id, p)}
               onHold={(h) => onHold(task.id, h)}
+              onWalk={task.requiredRoom ? () => move(task.requiredRoom!) : undefined}
             />
           ))}
           <ReviveRow state={state} youId={state.you} onRevive={onRevive} />
         </aside>
       </div>
 
-      <div className="relative z-10 flex flex-1 flex-col overflow-hidden lg:hidden">
-        <div className="flex gap-1 px-2 pt-2">
-          {(["map", "task", "crew"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`h-11 flex-1 rounded-md font-display text-xs tracking-widest ${
-                tab === t ? "bg-orange-500 text-black" : "bg-white/5 text-white/70"
-              }`}
-            >
-              {t.toUpperCase()}
-            </button>
-          ))}
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden pb-[env(safe-area-inset-bottom)] lg:hidden">
+        <div className="grid shrink-0 grid-cols-4 gap-1 px-2 pt-2">
+          <Sys k="O2" v={state.habitat.oxygen} compact />
+          <Sys k="PWR" v={state.habitat.power} compact />
+          <Sys k="HEAT" v={state.habitat.thermal} compact />
+          <Sys k="COM" v={state.habitat.comms} compact />
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-2">
-          {tab === "map" && (
-            <div className="flex h-full min-h-[360px] flex-col gap-2">
-              <div className="grid grid-cols-2 gap-1">
-                <Sys k="LIFE SUPPORT" v={state.habitat.oxygen} compact />
-                <Sys k="POWER" v={state.habitat.power} compact />
-                <Sys k="THERMAL" v={state.habitat.thermal} compact />
-                <Sys k="COMMS" v={state.habitat.comms} compact />
-              </div>
-              <div className="min-h-[280px] flex-1">
-                <HabitatMap state={state} onMove={move} onPickup={onPickup} clockSkew={clockSkew} />
-              </div>
-            </div>
-          )}
-          {tab === "task" && (
-            <div className="space-y-3">
-              <YouPanel you={you} gauges={state.gauges} onDrop={onDrop} />
-              {state.hasCommsIntel && state.missionControl && (
-                <div className="rounded border border-orange-400/30 bg-orange-400/10 p-2 text-sm text-orange-100">
-                  {state.missionControl}
-                </div>
-              )}
-              {floorItems.length > 0 &&
-                floorItems.map((it) => (
-                  <Button key={it.id} className="h-12 w-full" variant="warn" onClick={() => onPickup(it.id)}>
-                    TAP TO GRAB {ITEM_LABELS[it.type].toUpperCase()}
-                  </Button>
-                ))}
-              {myTasks.length === 0 ? (
-                <div className="glass p-4 text-sm text-white/60">No procedure on your board. Help the other station.</div>
-              ) : (
-                myTasks.map((task) => (
-                  <TaskPanel
-                    key={task.id}
-                    task={task}
-                    onUpdate={(p) => onUpdate(task.id, p)}
-                    onConfirm={(p) => onConfirm(task.id, p)}
-                    onHold={(h) => onHold(task.id, h)}
-                  />
-                ))
-              )}
-            </div>
-          )}
-          {tab === "crew" && (
+        {state.incident && (
+          <div className="mx-2 mt-2 shrink-0 rounded-md border border-orange-400/35 bg-orange-400/10 px-2 py-1.5">
+            <div className="font-mono text-[9px] tracking-[0.28em] text-orange-300">{state.incident.title}</div>
+            <p className="text-[11px] leading-snug text-orange-50">
+              {state.incident.pulse || state.incident.cause}
+            </p>
+          </div>
+        )}
+        <div className={`min-h-[168px] shrink-0 px-2 pt-2 ${atConsole ? "h-[28vh]" : "h-[36vh]"}`}>
+          <HabitatMap
+            state={state}
+            onMove={move}
+            onPickup={onPickup}
+            clockSkew={clockSkew}
+            compact
+          />
+        </div>
+        <div className="mt-1 flex shrink-0 gap-1 overflow-x-auto px-2">
+          {state.players
+            .filter((p) => p.kind !== "monitor")
+            .map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setCrewOpen((o) => !o)}
+                className="flex items-center gap-1 rounded-full border border-white/15 bg-black/40 px-2 py-1"
+              >
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: p.color }} />
+                <span className="font-mono text-[10px] text-white/80">
+                  {p.name}
+                  {p.incapacitated ? " DOWN" : ""}
+                </span>
+              </button>
+            ))}
+        </div>
+        {crewOpen && (
+          <div className="shrink-0 px-2 pt-1">
             <CrewList state={state} youId={state.you} onRevive={onRevive} />
+          </div>
+        )}
+        {myTasks.length > 1 && (
+          <div className="mt-1 flex shrink-0 gap-1 overflow-x-auto px-2">
+            {myTasks.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setFocusId(t.id)}
+                className={`h-9 shrink-0 rounded-md px-3 font-display text-[10px] tracking-widest ${
+                  focus?.id === t.id ? "bg-orange-500 text-black" : "bg-white/10 text-white/80"
+                }`}
+              >
+                {t.youHaveControl ? "DIAL" : "SAY"} · {t.title}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="min-h-0 flex-1 overflow-y-auto p-2">
+          <YouPanel you={you} gauges={state.gauges} onDrop={onDrop} compact />
+          {floorItems.length > 0 &&
+            floorItems.map((it) => (
+              <Button key={it.id} className="mt-2 h-12 w-full" variant="warn" onClick={() => onPickup(it.id)}>
+                TAP TO GRAB {ITEM_LABELS[it.type].toUpperCase()}
+              </Button>
+            ))}
+          {focus ? (
+            <div className="mt-2">
+              <TaskPanel
+                task={focus}
+                compact
+                onUpdate={(p) => onUpdate(focus.id, p)}
+                onConfirm={(p) => onConfirm(focus.id, p)}
+                onHold={(h) => onHold(focus.id, h)}
+                onWalk={focus.requiredRoom ? () => move(focus.requiredRoom!) : undefined}
+              />
+            </div>
+          ) : (
+            <div className="glass mt-2 p-4 text-sm text-white/60">No procedure on your board. Help the other station.</div>
           )}
+          <ReviveRow state={state} youId={state.you} onRevive={onRevive} />
         </div>
       </div>
 
@@ -247,10 +298,12 @@ function YouPanel({
   you,
   gauges,
   onDrop,
+  compact,
 }: {
   you: ClientState["players"][number] | undefined;
   gauges: Record<string, string>;
   onDrop: () => void;
+  compact?: boolean;
 }) {
   if (!you) return null;
   return (
@@ -274,14 +327,26 @@ function YouPanel({
           DROP {ITEM_LABELS[you.inventory]}
         </Button>
       )}
-      <div className="mt-2 grid grid-cols-2 gap-1">
-        {Object.entries(gauges).map(([k, v]) => (
-          <div key={k} className="rounded bg-black/30 px-2 py-1">
-            <div className="font-mono text-[9px] text-cyan-300/60">{k}</div>
-            <div className="font-display text-sm tabular-nums">{v}</div>
-          </div>
-        ))}
-      </div>
+      {!compact && (
+        <div className="mt-2 grid grid-cols-2 gap-1">
+          {Object.entries(gauges).map(([k, v]) => (
+            <div key={k} className="rounded bg-black/30 px-2 py-1">
+              <div className="font-mono text-[9px] text-cyan-300/60">{k}</div>
+              <div className="font-display text-sm tabular-nums">{v}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {compact && Object.keys(gauges).length > 0 && (
+        <div className="mt-2 flex gap-1 overflow-x-auto">
+          {Object.entries(gauges).map(([k, v]) => (
+            <div key={k} className="shrink-0 rounded bg-black/30 px-2 py-1">
+              <div className="font-mono text-[9px] text-cyan-300/60">{k}</div>
+              <div className="font-display text-sm tabular-nums">{v}</div>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="mt-2 font-mono text-[9px] tracking-widest text-white/35">
         {you.responsibilities.map((s) => SYSTEM_LABELS[s as SystemId]).join(" · ")}
       </div>

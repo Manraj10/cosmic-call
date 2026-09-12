@@ -1,3 +1,4 @@
+import { INCIDENTS } from "./cascade";
 import { int, type Rng } from "./rng";
 import type { Sim } from "./simulation";
 import { note } from "./simulation";
@@ -5,44 +6,19 @@ import { note } from "./simulation";
 export interface Planned {
   atMs: number;
   type: string;
+  incidentId?: string;
 }
 
-const CORE = [
-  "oxygen_leak",
-  "solar_angle",
-  "freq_tune",
-  "heater",
-  "co2_route",
-  "med_dose",
-  "power_split",
-  "reactor_reset",
-  "pressure_patch",
-  "airlock_seal",
-  "pattern",
-  "power_surge",
-  "valve_logic",
-  "memory_code",
-] as const;
-
 export function planMission(rng: Rng, playerCount: number): Planned[] {
-  const pairs: [(typeof CORE)[number], (typeof CORE)[number]][] = [
-    ["oxygen_leak", "heater"],
-    ["power_split", "freq_tune"],
-    ["med_dose", "solar_angle"],
-    ["co2_route", "pressure_patch"],
-    ["valve_logic", "power_surge"],
-    ["reactor_reset", "airlock_seal"],
-    ["memory_code", "pattern"],
-  ];
   const span = 7 * 60 * 1000;
   const start = 14000;
   const gap = playerCount <= 2 ? 52000 : playerCount === 3 ? 42000 : 34000;
   const out: Planned[] = [];
   let t = start;
-  for (const [a, b] of pairs) {
+  for (const inc of INCIDENTS) {
     if (t > span - 28000) break;
-    out.push({ atMs: t, type: a });
-    out.push({ atMs: t + 2500, type: b });
+    out.push({ atMs: t, type: inc.types[0], incidentId: inc.id });
+    out.push({ atMs: t + 400, type: inc.types[1], incidentId: inc.id });
     t += int(rng, Math.floor(gap * 0.85), Math.floor(gap * 1.15));
   }
   const mem = out.find((e) => e.type === "memory_code");

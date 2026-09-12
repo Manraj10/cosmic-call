@@ -27,7 +27,8 @@ import type {
 } from "../../src/shared/protocol";
 import { environmentalAt, planMission } from "./director";
 import { fallbackRecap, grokLine, grokRecap } from "./grok";
-import { applyPuzzle, boardCopy, createPuzzle, howToFor, intelFor, PUZZLE_TRADE, type PuzzleInstance } from "./puzzles";
+import { applyCascadeRipple, incidentForType, shoutLabel, stampIncident, worksheet } from "./cascade";
+import { applyPuzzle, boardCopy, createPuzzle, intelFor, type PuzzleInstance } from "./puzzles";
 import { mulberry32, pick, type Rng } from "./rng";
 import { maxUrgentTasks, roleCard, ROLE_DEFS, rolesForCount, timerScale } from "./roles";
 import {
@@ -139,8 +140,9 @@ export class GameRoom {
   score = SCORE_START;
   seed: number;
   rng: Rng;
-  plan: { atMs: number; type: string }[] = [];
+  plan: { atMs: number; type: string; incidentId?: string }[] = [];
   planIndex = 0;
+  spokenIncidents = new Set<string>();
   envSpawned = new Set<string>();
   voice: { id: string; text: string } | null = null;
   missionControl: string | null = null;
@@ -325,6 +327,7 @@ export class GameRoom {
     this.plan = planMission(this.rng, this.astronautCount());
     this.planIndex = 0;
     this.envSpawned.clear();
+    this.spokenIncidents.clear();
     this.earlyAuth = String(1000 + Math.floor(this.rng() * 9000));
     this.push("ok", "Fifteen seconds of quiet. It will not last.");
     this.speak("You have a few seconds of stability. Use them. Talk.");
@@ -487,6 +490,20 @@ export class GameRoom {
       /* item consumed */
     }
     note(this.sim, result.explanation);
+    const live = this.tasks.filter((x) => !x.resolved && x.puzzle.id !== t.puzzle.id).map((x) => x.puzzle);
+    const ripple = applyCascadeRipple(t.puzzle, result, live);
+    this.sim.cascadePulse = ripple.pulse;
+    if (ripple.tightenMs) {
+      const partner = this.tasks.find(
+        (x) =>
+          !x.resolved &&
+          x.puzzle.incidentId &&
+          x.puzzle.incidentId === t.puzzle.incidentId &&
+          x.puzzle.id !== t.puzzle.id,
+      );
+      if (partner) partner.deadlineAt = Math.max(Date.now() + 8000, partner.deadlineAt - ripple.tightenMs);
+    }
+    this.push("warn", ripple.pulse);
     this.broadcast();
   }
 
@@ -583,7 +600,7 @@ export class GameRoom {
       this.planIndex += 1;
       const critical = spec.type === "airlock_seal" || spec.type === "reactor_reset" || spec.type === "med_dose";
       if (activeUrgent >= cap && !critical) continue;
-      this.spawnType(spec.type, scale);
+      this.spawnType(spec.type, scale, spec.incidentId);
       activeUrgent += 1;
     }
 
@@ -606,10 +623,10 @@ export class GameRoom {
     }
   }
 
-  spawnType(type: string, scale: number) {
-    let puzzle = createPuzzle(type, this.rng, this.sim, scale, newId());
+  spawnType(type: string, scale: number, incidentId?: string) {
+    let puzzle = stampIncident(createPuzzle(type, this.rng, this.sim, scale, newId()));
     if (type === "memory_code" && this.earlyAuth) {
-      puzzle = createPuzzle(type, this.rng, this.sim, scale, newId());
+      puzzle = stampIncident(createPuzzle(type, this.rng, this.sim, scale, newId()));
       puzzle.solution = this.earlyAuth;
       puzzle.optimal = this.earlyAuth;
       if (puzzle.infoBySystem.comms) {
@@ -643,8 +660,17 @@ export class GameRoom {
       hold: new Map(),
       confirms: new Map(),
     });
-    this.push(puzzle.severity === "critical" ? "crit" : "warn", puzzle.title);
-    if (puzzle.voice) this.speak(puzzle.voice);
+    const inc = incidentForType(type);
+    const firstOfIncident = Boolean(incidentId && !this.spokenIncidents.has(incidentId));
+    if (firstOfIncident && inc) {
+      this.spokenIncidents.add(incidentId!);
+      this.push("crit", inc.title);
+      this.speak(inc.voice);
+      this.sim.cascadePulse = inc.cause;
+    } else {
+      this.push(puzzle.severity === "critical" ? "crit" : "warn", puzzle.title);
+      if (!inc && puzzle.voice) this.speak(puzzle.voice);
+    }
     if (puzzle.mc) this.missionControl = puzzle.mc;
     for (const c of puzzle.chain) note(this.sim, c);
   }
@@ -655,6 +681,20 @@ export class GameRoom {
       t.failed = true;
       this.score = Math.max(0, this.score - 160);
       this.push("crit", `${t.puzzle.title} window closed — conditions worsening.`);
+      const live = this.tasks.filter((x) => !x.resolved && !x.failed && x.puzzle.id !== t.puzzle.id).map((x) => x.puzzle);
+      const ripple = applyCascadeRipple(t.puzzle, { optimal: false, wasted: true }, live);
+      this.sim.cascadePulse = ripple.pulse;
+      if (ripple.tightenMs) {
+        const partner = this.tasks.find(
+          (x) =>
+            !x.resolved &&
+            !x.failed &&
+            x.puzzle.incidentId &&
+            x.puzzle.incidentId === t.puzzle.incidentId &&
+            x.puzzle.id !== t.puzzle.id,
+        );
+        if (partner) partner.deadlineAt = Math.max(now + 8000, partner.deadlineAt - ripple.tightenMs);
+      }
       if (t.puzzle.type === "oxygen_leak") this.sim.oxygenLeak += 1.5;
       if (t.puzzle.type === "co2_route") this.sim.co2Filter = Math.max(10, this.sim.co2Filter - 20);
       if (t.puzzle.type === "heater") this.sim.temperature -= 1.5;
@@ -745,6 +785,7 @@ export class GameRoom {
     this.plan = [];
     this.planIndex = 0;
     this.envSpawned.clear();
+    this.spokenIncidents.clear();
     this.memoryWhispered = false;
     this.missionControl = null;
     this.sim = createSim(Date.now());
@@ -834,20 +875,36 @@ export class GameRoom {
     }));
 
     const hab = habitatPublic(this.sim);
-    const emergencies = this.tasks
-      .filter((t) => !t.resolved)
-      .map((t) => ({
-        id: t.puzzle.id,
-        title: t.puzzle.title,
-        severity: t.puzzle.severity,
-      }));
+    const liveTasks = this.tasks.filter((t) => !t.resolved);
+    const seenInc = new Set<string>();
+    const emergencies = liveTasks
+      .map((t) => {
+        const title = t.puzzle.incidentTitle || t.puzzle.title;
+        const key = t.puzzle.incidentId || t.puzzle.id;
+        return { key, id: t.puzzle.id, title, severity: t.puzzle.severity };
+      })
+      .filter((e) => {
+        if (seenInc.has(e.key)) return false;
+        seenInc.add(e.key);
+        return true;
+      })
+      .map(({ id, title, severity }) => ({ id, title, severity }));
+
+    const focus = liveTasks[0]?.puzzle;
+    const incident = focus?.incidentTitle
+      ? {
+          title: focus.incidentTitle,
+          cause: focus.incidentCause || "",
+          pulse: this.sim.cascadePulse,
+        }
+      : this.sim.cascadePulse
+        ? { title: "HABITAT", cause: "", pulse: this.sim.cascadePulse }
+        : null;
 
     const hasComms = systems.includes("comms");
     const gauges = this.phase === "playing" || this.phase === "ended" ? systemGauges(this.sim, systems) : {};
 
-    const tasks: TaskView[] = this.tasks
-      .filter((t) => !t.resolved)
-      .map((t) => taskView(t, you, systems, now, this.players));
+    const tasks: TaskView[] = liveTasks.map((t) => taskView(t, you, systems, now, this.players, this.sim.cascadePulse));
 
     return {
       roomCode: this.code,
@@ -882,6 +939,7 @@ export class GameRoom {
         this.phase === "playing" ? Math.min(1, (now - this.startedAt) / MISSION_MS) : 0,
         this.tasks.filter((t) => !t.resolved).length * 0.22,
       ),
+      incident,
     };
   }
 
@@ -906,10 +964,10 @@ function tutorialView(you?: Player): TutorialView {
   return {
     problem:
       "Cabin oxygen: crew uses 12 L/min. A 4 L/min leak just opened. Generator is at 12 L/min — covering breath, not the hole.",
-    target: "Pick the one setting that covers crew + leak. Flooding the cabin is not safer.",
+    target: "Pick the one setting that covers crew + leak. Flooding the cabin is not safer — extra O2 steals the heater.",
     info: [
-      "Formula: production = crew use + leak. 12 + 4 = 16 L/min.",
-      "Cranking to 30 L/min does fill the tank — and steals kilowatts the heaters need. People freeze while you ‘fix’ air.",
+      "Same hole bleeds air AND heat. 12 + 4 = 16 L/min covers lungs.",
+      "Cranking to 30 fills the tank and kills the heater. People freeze while you 'fix' air.",
       "Leaving it at 12 ignores the hole. Tanks fall until someone blacks out.",
     ],
     options: [
@@ -1008,6 +1066,7 @@ function taskView(
   systems: SystemId[],
   now: number,
   players: Map<string, Player>,
+  pulse: string,
 ): TaskView {
   const puz = t.puzzle;
   const assigned = puz.assignedSystems.some((s) => systems.includes(s));
@@ -1024,19 +1083,20 @@ function taskView(
     .map((p) => p.name);
   let waiting = "";
   if (puz.requiresPresence && puz.requiredRoom && !inRoom) {
-    waiting = `Walk to ${ROOM_LABELS[puz.requiredRoom]} — tap that module on the map.`;
+    waiting = `Walk to ${ROOM_LABELS[puz.requiredRoom]}`;
   } else if (puz.requiredItem && you?.astro.inventory !== puz.requiredItem) {
     waiting = `Need ${ITEM_LABELS[puz.requiredItem]}`;
   } else if (puz.requiredPlayers > 1 && names.length < puz.requiredPlayers) {
     waiting = `${puz.requiredPlayers} astronauts needed in ${puz.requiredRoom ? ROOM_LABELS[puz.requiredRoom] : "position"}`;
   }
+  const sheet = worksheet(puz.type, control);
   return {
     id: puz.id,
     type: puz.type,
     title: puz.title,
-    problem: puz.problem,
+    problem: puz.incidentCause || puz.problem,
     target: puz.target,
-    howTo: howToFor(puz.type, puz.howTo),
+    howTo: sheet[0] || "",
     availableInfo: info,
     cost: puz.cost,
     risk: puz.risk,
@@ -1047,7 +1107,7 @@ function taskView(
     youHaveControl: control,
     yourJob: brief.job,
     askCrew: brief.ask,
-    trade: PUZZLE_TRADE[puz.type] || puz.cost,
+    trade: puz.sameHole || "",
     requiresPresence: puz.requiresPresence,
     requiredRoom: puz.requiredRoom,
     requiredItem: puz.requiredItem,
@@ -1058,5 +1118,12 @@ function taskView(
     control: t.control,
     waitingOn: waiting,
     expired: t.failed,
+    incidentTitle: puz.incidentTitle || puz.title,
+    incidentCause: puz.incidentCause || "",
+    partnerTitle: puz.partnerTitle || "",
+    sameHole: puz.sameHole || "",
+    cascadePulse: pulse,
+    worksheet: sheet,
+    shoutLabel: shoutLabel(puz.type),
   };
 }
