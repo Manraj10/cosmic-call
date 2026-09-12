@@ -121,7 +121,7 @@ export const SIGNALS: {
     id: 'brace',
     label: 'BRACE',
     mark: '▣',
-    hint: 'Only you know when impact is',
+    hint: 'Send at T-4 — she needs a beat to react',
     owner: 'pilot',
   },
 ]

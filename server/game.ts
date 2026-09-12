@@ -528,7 +528,6 @@ export class Hab {
       pumpOn: null,
       shieldsOn: null,
       braced: this.elapsed - this.bracedAt <= BRACE_WINDOW_SECONDS,
-      braceWindow: this.stormEta != null && this.stormEta <= BRACE_WINDOW_SECONDS,
       signals: [],
       power: null,
       stormEta: null,

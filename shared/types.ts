@@ -61,7 +61,6 @@ export interface ClientView {
   pumpOn: boolean | null
   shieldsOn: boolean | null
   braced: boolean
-  braceWindow: boolean
   /** Vega only: signals pushed to her glass. */
   signals: SignalEvent[]
 
