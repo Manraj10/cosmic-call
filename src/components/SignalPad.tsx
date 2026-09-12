@@ -10,6 +10,8 @@ export function SignalPad({ view }: { view: ClientView }) {
   const cd = view.signalCooldownMs ?? 0
   const locked = cd > 0
   const pct = Math.min(100, (cd / SIGNAL_COOLDOWN_MS) * 100)
+  // Her one bit back: did she actually look at it?
+  const sawIt = view.ackAgeMs != null && view.ackAgeMs < 4000
 
   return (
     <div style={{ display: 'grid', gap: 8 }}>
@@ -35,8 +37,12 @@ export function SignalPad({ view }: { view: ClientView }) {
         ))}
       </div>
       {view.lastSignal ? (
-        <div className="tag" style={{ textAlign: 'center' }}>
-          last sent: {signalLabel(view.lastSignal)}
+        <div className={`ackline${sawIt ? ' lit' : ''}`}>
+          {sawIt ? (
+            <>she read {signalLabel(view.lastSignal)}</>
+          ) : (
+            <>sent {signalLabel(view.lastSignal)} — no confirmation yet</>
+          )}
         </div>
       ) : null}
     </div>

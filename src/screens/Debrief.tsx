@@ -4,13 +4,8 @@ export function Debrief({ view }: { view: ClientView }) {
   const won = view.outcome === 'won'
   return (
     <div
-      className="app"
-      style={{
-        backgroundImage:
-          'linear-gradient(rgba(13,9,6,0.7), rgba(13,9,6,0.96)), url(/art/hero-hab.webp)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }}
+      className="app stage scanlines"
+      style={{ '--plate': 'url(/art/hero-hab.webp)' } as React.CSSProperties}
     >
       <div className="verdict">
         <div className="tag">{won ? 'far side of the corridor' : 'hab-7 went quiet'}</div>

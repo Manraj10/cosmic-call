@@ -76,6 +76,8 @@ export interface ClientView {
   /** Shared by the three crew: one signal pad, one cooldown. */
   signalCooldownMs: number | null
   lastSignal: SignalId | null
+  /** Crew only: how long ago Vega confirmed she saw a signal. Her one bit back. */
+  ackAgeMs: number | null
 
   outcome: Outcome | null
   loseReason: string | null

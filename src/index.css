@@ -327,6 +327,24 @@ input {
   transition: width 0.1s linear;
 }
 
+.ackline {
+  text-align: center;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+  border: 1px solid var(--line);
+  padding: 7px 8px;
+  border-radius: 3px;
+}
+
+.ackline.lit {
+  color: #08221a;
+  background: var(--ok);
+  border-color: var(--ok);
+  font-weight: 700;
+}
+
 /* ---------- incoming signal on Vega's glass ---------- */
 
 .incoming {
@@ -410,6 +428,58 @@ input {
 .log div.fresh {
   color: #fff;
   font-weight: 700;
+}
+
+/* ---------- cinematic backdrop ---------- */
+
+/*
+ * The art plate is deliberately underexposed, so it gets brightened here and
+ * held on its own layer. Putting the image straight into a background with a
+ * dark gradient over it just renders as black.
+ */
+.stage {
+  position: relative;
+  isolation: isolate;
+}
+
+.stage::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: var(--plate);
+  background-size: cover;
+  background-position: center;
+  filter: brightness(1.85) saturate(1.15) contrast(1.05);
+  opacity: 0.62;
+  z-index: -2;
+  pointer-events: none;
+}
+
+/* Vignette so overlaid text stays legible against the brightened plate. */
+.stage::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(115% 75% at 50% 42%, transparent 0%, rgba(13, 9, 6, 0.82) 78%),
+    linear-gradient(rgba(13, 9, 6, 0.55), rgba(13, 9, 6, 0.2) 34%, rgba(13, 9, 6, 0.88));
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Faint CRT scanlines over everything, for the console feel. */
+.scanlines::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.028) 0 1px,
+    transparent 1px 3px
+  );
+  z-index: 9;
+  pointer-events: none;
+  mix-blend-mode: overlay;
 }
 
 /* ---------- lobby / home ---------- */

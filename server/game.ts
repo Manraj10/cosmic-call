@@ -105,6 +105,7 @@ export class Hab {
   private signals: SignalEvent[] = []
   private lastSignalAt = -99
   private lastSignal: SignalId | null = null
+  private vegaAckAt: number | null = null
   private outcome: Outcome | null = null
   private loseReason: string | null = null
   private seq = 1
@@ -384,6 +385,14 @@ export class Hab {
         this.bracedAt = this.elapsed
         break
       case 'clear-signals':
+        // Vega's only outbound channel inside the game: one bit, "I saw it".
+        // Everything else she has to say out loud, which works fine — the
+        // block on her is one-directional.
+        if (this.signals.some((s) => s.fresh)) {
+          this.vegaAckAt = this.elapsed
+          this.alarm('VEGA ACKNOWLEDGED')
+          this.speak('Vega read it.', 'system')
+        }
         this.signals = this.signals.map((s) => ({ ...s, fresh: false }))
         break
     }
@@ -473,6 +482,7 @@ export class Hab {
       alarms: [],
       signalCooldownMs: null,
       lastSignal: null,
+      ackAgeMs: null,
       outcome: this.outcome,
       loseReason: this.loseReason,
       spectator: null,
@@ -495,8 +505,17 @@ export class Hab {
       }
     }
 
+    const ackAgeMs =
+      this.vegaAckAt == null ? null : Math.round((this.elapsed - this.vegaAckAt) * 1000)
+
     if (role === 'engineer') {
-      return { ...base, power: Math.round(this.power), signalCooldownMs: cooldown, lastSignal: this.lastSignal }
+      return {
+        ...base,
+        power: Math.round(this.power),
+        signalCooldownMs: cooldown,
+        lastSignal: this.lastSignal,
+        ackAgeMs,
+      }
     }
 
     if (role === 'pilot') {
@@ -505,6 +524,7 @@ export class Hab {
         stormEta: this.stormEta,
         signalCooldownMs: cooldown,
         lastSignal: this.lastSignal,
+        ackAgeMs,
       }
     }
 
@@ -514,6 +534,7 @@ export class Hab {
         alarms: this.alarms,
         signalCooldownMs: cooldown,
         lastSignal: this.lastSignal,
+        ackAgeMs,
       }
     }
 

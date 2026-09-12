@@ -27,13 +27,8 @@ export function Home(props: {
 
   return (
     <div
-      className="app"
-      style={{
-        backgroundImage:
-          'linear-gradient(rgba(13,9,6,0.62), rgba(13,9,6,0.94)), url(/art/hero-hab.webp)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }}
+      className="app stage scanlines"
+      style={{ '--plate': 'url(/art/hero-hab.webp)' } as React.CSSProperties}
     >
       <div className="hero">
         <div className="tag">four astronauts · one dust storm · 90 seconds</div>
