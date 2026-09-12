@@ -1,6 +1,7 @@
 import { CREW_JOB, CREW_META, STATION_META, VEGA_META } from '@shared/content'
 import { CREW_IDS } from '@shared/types'
 import type { ClientView, StationId } from '@shared/types'
+import { JoinQr } from '../components/JoinQr'
 import { claim, setReady, startGame } from '../net'
 
 const ART: Record<string, string> = {
@@ -32,10 +33,11 @@ export function Lobby(props: {
       <div className="topbar">
         <div>
           <div className="tag">hab code — read it out loud</div>
-          <div className="who">CROSSTALK</div>
+          <div className="who">AIRGAP</div>
         </div>
       </div>
       <div className="code">{view.code}</div>
+      <JoinQr code={view.code} />
 
       <div className="roster">
         {view.players.map((p) => (
@@ -107,7 +109,8 @@ export function Lobby(props: {
       ) : mine && mine !== 'board' ? (
         <div className="brief">
           Your alert will contradict theirs. Ask what they see, then send Vega a picture — it slams
-          her glass. All three of you share one cooldown, so a selfish press costs everyone.
+          her glass, signed with your key. All three of you share one cooldown, so a selfish press
+          costs everyone. Watch your signing log: something on the bus is writing orders too.
           <div className="honor">{CREW_JOB[mine]}</div>
         </div>
       ) : null}

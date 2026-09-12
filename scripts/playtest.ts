@@ -11,9 +11,10 @@
  * signal arrived. She never reads which valve is leaking, because she cannot.
  */
 import { MISSION_SECONDS, SIGNAL_OWNER } from '../shared/content.ts'
-import { VALVES } from '../shared/types.ts'
+import { sealOrder } from '../shared/seal.ts'
+import { CREW_IDS, VALVES } from '../shared/types.ts'
 import { Hab } from '../server/game.ts'
-import type { ClientAction, CrewId, SignalId, StationId } from '../shared/types.ts'
+import type { ClientAction, ClientView, CrewId, SignalId, StationId } from '../shared/types.ts'
 
 type Internals = {
   tick: (dt: number) => void
@@ -99,6 +100,14 @@ interface Sim {
   /** Individual calls nobody makes, for testing whether one call is load-bearing. */
   skip?: SignalId[]
   /**
+   * An operator who does whatever the card says without reading the badge. If
+   * this does as well as a careful one, the seal is decoration and GHOST is
+   * scenery.
+   */
+  obeysAnything?: boolean
+  /** Comms never rotates a stolen key, so GHOST keeps signing as that seat. */
+  neverRevoke?: boolean
+  /**
    * Vega playing her own gauge instead of only obeying signals. She can see the
    * air number and the overpressure hatching, so a sharp player really would do
    * this. If she can carry the round alone the whole premise is dead.
@@ -111,22 +120,48 @@ interface Sim {
  * `obeyedPumpAt` keeps her from undoing an order she just followed — a real
  * player trusts a signal for a few seconds before overriding it.
  */
-function vegaSelfDrive(hab: Hab, inner: Internals, obeyedPumpAt: number | null) {
+async function vegaSelfDrive(hab: Hab, inner: Internals, obeyedPumpAt: number | null) {
   const air = inner.air
   const trusting = obeyedPumpAt != null && inner.elapsed - obeyedPumpAt < 10
-  if (air > 96 && inner.pumpOn) hab.applyAction('vega', { type: 'pump', on: false })
-  else if (air < 58 && !inner.pumpOn && !trusting) hab.applyAction('vega', { type: 'pump', on: true })
+  if (air > 96 && inner.pumpOn) await hab.applyAction('vega', { type: 'pump', on: false })
+  else if (air < 58 && !inner.pumpOn && !trusting)
+    await hab.applyAction('vega', { type: 'pump', on: true })
   // Air bleeding with the pump already running means a leak, but not which one.
   // Guessing is all she has, so let her guess — and pay for a wrong guess.
   if (air < 40) {
     const open = VALVES.filter((v) => inner.valves[v] === 'open')
-    if (open.length > 1) hab.applyAction('vega', { type: 'valve', valve: open[0], sealed: true })
+    if (open.length > 1) await hab.applyAction('vega', { type: 'valve', valve: open[0], sealed: true })
   }
 }
 
-function run(sim: Sim, seed: number) {
+async function run(sim: Sim, seed: number) {
   const { hab, inner } = makeHab(seed)
   const act = (who: string, a: ClientAction) => hab.applyAction(who, a)
+
+  /** A crew phone signs with its own key before the order leaves it. */
+  const sign = async (seat: CrewId, signal: SignalId) => {
+    const seal = (hab.viewFor(seat) as ClientView).seal
+    if (!seal) return 'no key'
+    const tag = await sealOrder(seal.key, seal.roundId, seat, signal, seal.nextSeq)
+    return act(seat, { type: 'signal', signal, seq: seal.nextSeq, tag })
+  }
+
+  /**
+   * The victim of a key theft can see orders in their own log they never
+   * pressed. They cannot tell the operator — she cannot receive it — so they
+   * say it out loud and comms rotates. That shout is what this models.
+   */
+  const watchTheBus = async () => {
+    if (sim.neverRevoke) return
+    for (const seat of CREW_IDS) {
+      if (sim.missing.includes(seat)) continue
+      const seal = (hab.viewFor(seat) as ClientView).seal
+      if (seal?.log.some((e) => !e.mine)) {
+        await act('sparks', { type: 'revoke', seat })
+        return
+      }
+    }
+  }
 
   let intent: SignalId | null = null
   let noticedAt: number | null = null
@@ -150,12 +185,26 @@ function run(sim: Sim, seed: number) {
       noticedAt = t
     }
     if (intent && noticedAt != null && t - noticedAt >= sim.lag) {
-      const err = act(SIGNAL_OWNER[intent], { type: 'signal', signal: intent })
+      const err = await sign(SIGNAL_OWNER[intent], intent)
       if (!err) intent = null
     }
 
+    if (!sim.missing.includes('sparks')) await watchTheBus()
+
     const view = hab.viewFor('vega')!
-    const fresh = view.signals.filter((s) => s.fresh).at(-1)
+    // She reads the badge before she reads the order. A careful operator acts on
+    // the newest card that carries a good seal and ignores the rest; she does
+    // not bin the whole glass, because a real order can be sitting under a
+    // forgery. Binning everything was costing her real orders and quietly
+    // changing what this harness was measuring.
+    const onGlass = view.signals.filter((s) => s.fresh)
+    const fresh = sim.obeysAnything
+      ? onGlass.at(-1)
+      : (onGlass.filter((s) => s.seal === 'sealed').at(-1) ?? null)
+    if (!fresh && onGlass.length && !sim.obeysAnything) {
+      // Nothing on the glass is signed. Clear it and wait for a real one.
+      await act('vega', { type: 'clear-signals' })
+    }
     if (fresh && fresh.signal !== vegaTodo) {
       vegaTodo = fresh.signal
       vegaSawAt = t
@@ -163,31 +212,31 @@ function run(sim: Sim, seed: number) {
     if (vegaTodo && vegaSawAt != null && t - vegaSawAt >= sim.vegaLag) {
       switch (vegaTodo) {
         case 'pump-off':
-          act('vega', { type: 'pump', on: false })
+          await act('vega', { type: 'pump', on: false })
           obeyedPumpAt = t
           break
         case 'pump-on':
-          act('vega', { type: 'pump', on: true })
+          await act('vega', { type: 'pump', on: true })
           obeyedPumpAt = t
           break
         case 'seal-port':
-          act('vega', { type: 'valve', valve: 'port', sealed: true })
+          await act('vega', { type: 'valve', valve: 'port', sealed: true })
           break
         case 'seal-starboard':
-          act('vega', { type: 'valve', valve: 'starboard', sealed: true })
+          await act('vega', { type: 'valve', valve: 'starboard', sealed: true })
           break
         case 'shields-on':
-          act('vega', { type: 'shields', on: true })
+          await act('vega', { type: 'shields', on: true })
           break
         case 'brace':
-          act('vega', { type: 'brace' })
+          await act('vega', { type: 'brace' })
           break
       }
-      act('vega', { type: 'clear-signals' })
+      await act('vega', { type: 'clear-signals' })
       vegaTodo = null
     }
 
-    if (sim.vegaSolo) vegaSelfDrive(hab, inner, obeyedPumpAt)
+    if (sim.vegaSolo) await vegaSelfDrive(hab, inner, obeyedPumpAt)
 
     minAir = Math.min(minAir, inner.air)
   }
@@ -203,8 +252,8 @@ function run(sim: Sim, seed: number) {
 
 const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8]
 
-function report(sim: Sim) {
-  const results = SEEDS.map((s) => run(sim, s))
+async function report(sim: Sim) {
+  const results = await Promise.all(SEEDS.map((s) => run(sim, s)))
   const won = results.filter((r) => r.outcome === 'won').length
   const floor = Math.min(...results.map((r) => r.minAir))
   console.log(
@@ -214,13 +263,13 @@ function report(sim: Sim) {
 }
 
 console.log('=== the one path ===')
-const sharp = report({ label: 'all three, sharp (1.2s)', lag: 1.2, vegaLag: 0.7, missing: [] })
-const normal = report({ label: 'all three, normal (2.2s)', lag: 2.2, vegaLag: 1.3, missing: [] })
-const slow = report({ label: 'all three, slow (3.6s)', lag: 3.6, vegaLag: 2.2, missing: [] })
-const sloppy = report({ label: 'all three, sloppy (5.0s)', lag: 5, vegaLag: 3, missing: [] })
+const sharp = await report({ label: 'all three, sharp (1.2s)', lag: 1.2, vegaLag: 0.7, missing: [] })
+const normal = await report({ label: 'all three, normal (2.2s)', lag: 2.2, vegaLag: 1.3, missing: [] })
+const slow = await report({ label: 'all three, slow (3.6s)', lag: 3.6, vegaLag: 2.2, missing: [] })
+const sloppy = await report({ label: 'all three, sloppy (5.0s)', lag: 5, vegaLag: 3, missing: [] })
 
 // The realistic good-table case: she obeys the pad AND works her own gauge.
-const helped = report({
+const helped = await report({
   label: 'all three + Vega on her gauge',
   lag: 2.2,
   vegaLag: 1.3,
@@ -229,31 +278,31 @@ const helped = report({
 })
 
 console.log('\n=== every seat is load-bearing ===')
-const noRook = report({
+const noRook = await report({
   label: 'Rook silent (no pump calls)',
   lag: 1.2,
   vegaLag: 0.7,
   missing: ['engineer'],
 })
-const noIdris = report({
+const noIdris = await report({
   label: 'Idris silent (no storm calls)',
   lag: 1.2,
   vegaLag: 0.7,
   missing: ['pilot'],
 })
-const noChen = report({
+const noChen = await report({
   label: 'Chen silent (no valve calls)',
   lag: 1.2,
   vegaLag: 0.7,
   missing: ['sparks'],
 })
-const nobody = report({
+const nobody = await report({
   label: 'nobody signals at all',
   lag: 1.2,
   vegaLag: 0.7,
   missing: ['engineer', 'pilot', 'sparks'],
 })
-const solo = report({
+const solo = await report({
   label: 'Vega alone, playing her gauge',
   lag: 1.2,
   vegaLag: 0.7,
@@ -261,21 +310,21 @@ const solo = report({
   vegaSolo: true,
 })
 console.log('\n=== and so is every single call ===')
-const noBrace = report({
+const noBrace = await report({
   label: 'brace never called',
   lag: 2.2,
   vegaLag: 1.3,
   missing: [],
   skip: ['brace'],
 })
-const noShields = report({
+const noShields = await report({
   label: 'shields never called',
   lag: 2.2,
   vegaLag: 1.3,
   missing: [],
   skip: ['shields-on'],
 })
-const noPumpOff = report({
+const noPumpOff = await report({
   label: 'pump-off never called',
   lag: 2.2,
   vegaLag: 1.3,

@@ -415,6 +415,16 @@ input {
   font-weight: 700;
 }
 
+/* A refused send — comms rotated this key a second ago. Press again. */
+.padnote {
+  border-left: 3px solid var(--danger);
+  background: #2a0f0a;
+  padding: 7px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #ffb8a8;
+}
+
 /* ---------- a picture flying at Vega's glass ---------- */
 
 .slam {
@@ -520,6 +530,352 @@ input {
   50% {
     background: #3a1a0c;
   }
+}
+
+/* ---------- the seal ---------- */
+
+/*
+ * Three states, and colour carries none of the meaning on its own. The
+ * silhouette (one thin ring / dashed ring / double ring), the surface (flat /
+ * hairlines / diagonal hatch), the glyph and the type weight each say the same
+ * thing independently, so the badge still reads at arm's length, in peripheral
+ * vision, and to the player who cannot tell the green from the red.
+ */
+.seal {
+  margin-top: 12px;
+  padding: 10px 12px 9px;
+  display: grid;
+  gap: 5px;
+  text-align: center;
+}
+
+.seal-word {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+  font-size: clamp(17px, 6vw, 24px);
+  line-height: 1.05;
+  letter-spacing: 0.1em;
+}
+
+.seal-word::before {
+  font-size: 0.72em;
+  line-height: 1;
+}
+
+.seal-why {
+  font-size: 12px;
+  line-height: 1.4;
+  letter-spacing: 0.03em;
+  max-width: 32ch;
+  margin: 0 auto;
+  color: var(--dim);
+}
+
+.seal-meta {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+}
+
+.seal-meta b {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* Permission: round glyph, soft corners, one thin ring, nothing moving. */
+.seal-sealed {
+  border: 1px solid var(--ok);
+  border-radius: 4px;
+  background: #14210f;
+}
+
+.seal-sealed .seal-word {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.seal-sealed .seal-word::before {
+  content: '\25CF';
+}
+
+/* A real signature at the wrong time. Square glyph, dashed ring, horizontal
+   rules — a texture that cannot be mistaken for the hatch below it. */
+.seal-stale {
+  border: 2px dashed var(--power);
+  background:
+    repeating-linear-gradient(to bottom, rgba(255, 176, 32, 0.14) 0 1px, transparent 1px 5px),
+    #2a1a08;
+}
+
+.seal-stale .seal-word {
+  color: var(--power);
+  font-weight: 700;
+}
+
+.seal-stale .seal-word::before {
+  content: '\25A0';
+}
+
+/* Two seconds to decide not to touch anything: double ring, hazard hatch, and
+   a jolt that keeps a corner of her eye on it. */
+.seal-broken {
+  border: 3px solid var(--danger);
+  outline: 2px solid var(--danger);
+  outline-offset: 3px;
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 59, 31, 0.5) 0 5px, transparent 5px 11px),
+    #2a0c08;
+  box-shadow: 0 0 26px rgba(255, 59, 31, 0.45);
+  animation: sealjolt 1.7s steps(1, end) infinite;
+}
+
+.seal-broken .seal-word {
+  font-size: clamp(19px, 7vw, 28px);
+  font-weight: 900;
+  color: #ffe8e2;
+}
+
+.seal-broken .seal-word::before {
+  content: '\25B2';
+  color: var(--danger);
+}
+
+.seal-broken .seal-why {
+  color: #ffb8a8;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* One short jolt on a long cycle: motion in the periphery without a badge that
+   vibrates for the whole ninety seconds. */
+@keyframes sealjolt {
+  0% {
+    transform: translateX(-3px);
+  }
+  3% {
+    transform: translateX(3px);
+  }
+  6% {
+    transform: translateX(-2px);
+  }
+  9% {
+    transform: translateX(2px);
+  }
+  12%,
+  100% {
+    transform: none;
+  }
+}
+
+/* The card is tinted before her eye ever reaches the badge, so the arrival
+   flash itself carries the verdict. */
+.seal-slam-sealed {
+  animation-name: slamflash-ok;
+}
+
+.seal-slam-stale {
+  background: rgba(30, 18, 4, 0.8);
+}
+
+.seal-slam-stale .slam-plate {
+  box-shadow:
+    0 0 0 3px var(--power),
+    0 24px 70px #000;
+}
+
+.seal-slam-stale .slam-caption {
+  background: linear-gradient(transparent, #16100a 28%);
+}
+
+.seal-slam-broken {
+  background: rgba(34, 6, 4, 0.82);
+  animation-name: slamflash-bad;
+}
+
+/* The forged picture is drained as well as ringed — it should look wrong. */
+.seal-slam-broken .slam-plate {
+  box-shadow:
+    0 0 0 3px var(--danger),
+    0 24px 70px #000;
+  filter: saturate(0.5) contrast(1.06);
+}
+
+.seal-slam-broken .slam-caption {
+  background: linear-gradient(transparent, #1a0704 28%);
+}
+
+@keyframes slamflash-ok {
+  50% {
+    background: rgba(10, 38, 46, 0.6);
+  }
+}
+
+@keyframes slamflash-bad {
+  50% {
+    background: rgba(92, 18, 8, 0.7);
+  }
+}
+
+/* Not the cyan slab her thumb already knows the position of. */
+.slam .ack.refuse {
+  border-color: var(--danger);
+  background: #240d09;
+  color: var(--danger);
+  box-shadow: inset 0 0 0 2px var(--bg);
+}
+
+/* ---------- signing log ---------- */
+
+.keylog {
+  border: 1px solid var(--line);
+  background: #0a0705;
+  border-radius: 4px;
+  padding: 9px 10px;
+  display: grid;
+  gap: 7px;
+}
+
+.keylog.compromised {
+  border-color: var(--danger);
+  box-shadow: 0 0 18px rgba(255, 59, 31, 0.18);
+}
+
+.keylog-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 6px;
+}
+
+/* The turn of the round: something is holding this console's key. */
+.keyalarm {
+  border: 2px solid var(--danger);
+  background: #2a0c08;
+  padding: 9px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: 0.05em;
+  text-align: center;
+  color: #ffe8e2;
+  animation: pulse 0.7s steps(2, end) infinite;
+}
+
+.keyrows {
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
+}
+
+.keyrow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 5px 6px;
+  border-left: 3px solid var(--line);
+}
+
+.keyrow.quiet {
+  border-left-color: transparent;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+}
+
+.kseq {
+  font-variant-numeric: tabular-nums;
+  color: var(--dim);
+}
+
+.ksig {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kwho {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+/* A line they know they did not press. It is the only evidence in the game. */
+.keyrow.notmine {
+  border-left-color: var(--danger);
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 59, 31, 0.16) 0 5px, transparent 5px 11px),
+    #240d09;
+  font-weight: 700;
+  color: #ffe8e2;
+}
+
+.keyrow.notmine .kseq,
+.keyrow.notmine .kwho {
+  font-weight: 800;
+  color: var(--danger);
+}
+
+/* ---------- key registry ---------- */
+
+.revoke {
+  display: grid;
+  gap: 7px;
+}
+
+.revoke-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+/* Throws for a bus, not buttons: rotating a clean seat costs the table a call,
+   so each one wears its owner's colour and a lit top edge. */
+.rev {
+  min-height: 56px;
+  padding: 9px 6px;
+  display: grid;
+  gap: 3px;
+  place-content: center;
+  text-align: center;
+  border: 2px solid var(--accent);
+  border-radius: 4px;
+  background: var(--panel-2);
+  box-shadow: inset 0 3px var(--accent);
+  transition: transform 0.06s ease;
+}
+
+.rev:active {
+  transform: translateY(2px);
+  background: var(--panel);
+}
+
+.rev:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+}
+
+.rname {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+
+.rwhat {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
 }
 
 .silent-note {
@@ -725,6 +1081,25 @@ body::after {
   color: var(--air);
 }
 
+/* The QR is printed on the same glass as the code, not pasted over it. */
+.joinqr {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding-top: 6px;
+}
+
+.joinqr img {
+  border: 1px solid var(--air);
+  border-radius: 3px;
+  box-shadow: 0 0 22px rgba(62, 224, 255, 0.22);
+}
+
+.joinqr .tag {
+  line-height: 1.5;
+  text-align: center;
+}
+
 .seats {
   display: grid;
   gap: 8px;
@@ -849,10 +1224,124 @@ body::after {
   font-size: 15px;
 }
 
+/*
+ * The incident report reads as something printed after the fact rather than as
+ * more console: flat panel, figures on one rail, and exactly one line that is
+ * allowed to hurt.
+ */
+.incident {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 4px;
+  padding: 12px 14px 11px;
+  text-align: left;
+}
+
+.incident-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.incident-grade {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  color: var(--ink);
+}
+
+.incident-rows {
+  display: grid;
+}
+
+.irow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.irow:last-child {
+  border-bottom: none;
+}
+
+.ikey {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.ival {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.irow.good .ival {
+  color: var(--ok);
+}
+
+/* The forged order they obeyed. It gets the bleed and the hatch. */
+.irow.bad {
+  margin: 0 -14px;
+  padding: 8px 14px 8px 11px;
+  border-left: 3px solid var(--danger);
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 59, 31, 0.14) 0 5px, transparent 5px 11px),
+    #240d09;
+}
+
+.irow.bad .ikey {
+  color: #ffb8a8;
+}
+
+.irow.bad .ival {
+  font-weight: 800;
+  color: var(--danger);
+}
+
+.incident-note {
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dim);
+}
+
 /* ---------- spectator board ---------- */
 
 .board {
   max-width: 1100px;
+}
+
+/* The board is pointed at by a camera, so this states the threat rather than
+   strobing at the room the way a console would. */
+.busalert {
+  border: 2px solid var(--danger);
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 59, 31, 0.22) 0 6px, transparent 6px 13px),
+    #2a0c08;
+  padding: 10px 12px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ffe8e2;
 }
 
 .board .strip {
@@ -880,5 +1369,18 @@ body::after {
 @keyframes strobe {
   50% {
     background: #3a0f08;
+  }
+}
+
+/* The seal states are carried by shape, weight and texture, so nothing is lost
+   when the motion is taken away. */
+@media (prefers-reduced-motion: reduce) {
+  .seal-broken,
+  .keyalarm {
+    animation: none;
+  }
+
+  .rev {
+    transition: none;
   }
 }

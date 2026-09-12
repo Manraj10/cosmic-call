@@ -10,9 +10,22 @@
  * being about relaying and starts being solitaire.
  */
 import { SIGNAL_OWNER } from '../shared/content.ts'
+import { sealOrder } from '../shared/seal.ts'
 import { CREW_IDS, ROLE_IDS, hearsSpeech } from '../shared/types.ts'
 import { Hab } from '../server/game.ts'
-import type { ClientView, SignalId, StationId } from '../shared/types.ts'
+import type { ClientView, CrewId, SignalId, StationId } from '../shared/types.ts'
+
+/**
+ * Send an order the way a phone does: sign it with that console's own key
+ * first. A harness that could post unsigned orders would be testing a game
+ * nobody plays.
+ */
+async function send(h: Hab, seat: CrewId, signal: SignalId, as: string = seat) {
+  const seal = (h.viewFor(as) as ClientView).seal
+  if (!seal) return 'that seat holds no key'
+  const tag = await sealOrder(seal.key, seal.roundId, seat, signal, seal.nextSeq)
+  return h.applyAction(as, { type: 'signal', signal, seq: seal.nextSeq, tag })
+}
 
 function seat(hab: Hab, role: StationId, id = role) {
   hab.addPlayer({
@@ -76,6 +89,10 @@ for (const [field, value] of hiddenFromVega) {
   if (value !== null) problems.push(`Vega can see ${field} (${JSON.stringify(value)})`)
 }
 if (v.alarms.length) problems.push('Vega can read the alarm log')
+// She holds every control and no key. If she could sign, she could verify for
+// herself, and the crew would stop being the thing that vouches for an order.
+if (v.seal !== null) problems.push('Vega was issued a signing key')
+if (v.canRevoke !== null) problems.push('Vega can rotate keys, which belongs to comms')
 if (v.air == null) problems.push('Vega cannot see the air, which is the one thing she needs')
 if (v.order && /port|starboard|storm|t-\d|power \d/i.test(v.order.text)) {
   problems.push(`Vega's order leaked someone else's fact: "${v.order.text}"`)
@@ -90,6 +107,8 @@ if (rook.stormEta !== null) problems.push('Rook can see the storm, which is Idri
 if (rook.stormActive !== null) problems.push('Rook can see that the front landed')
 if (rook.alarms.length) problems.push('Rook can read the log, which is Chen only')
 if (rook.braced !== null) problems.push('Rook can see whether she is holding on')
+if (rook.seal == null) problems.push('Rook holds no key, so he cannot send anything')
+if (rook.canRevoke !== null) problems.push('Rook can rotate keys, which belongs to comms')
 
 const idris = view('pilot')
 if (idris.stormEta == null && idris.stormActive !== true) {
@@ -100,6 +119,10 @@ if (idris.draw !== null) problems.push('Idris can see the draw, which is Rook on
 if (idris.air !== null) problems.push('Idris can see the air')
 if (idris.alarms.length) problems.push('Idris can read the log')
 if (idris.braced !== null) problems.push('Idris can see whether she is holding on')
+if (idris.canRevoke !== null) problems.push('Idris can rotate keys, which belongs to comms')
+if (idris.seal && rook.seal && idris.seal.key === rook.seal.key) {
+  problems.push('two consoles were issued the same key, so neither vouches for anything')
+}
 
 const chen = view('sparks')
 if (!chen.alarms.length) problems.push('Chen cannot read the alarm log')
@@ -109,6 +132,7 @@ if (chen.draw !== null) problems.push('Chen can see the draw')
 if (chen.stormEta !== null) problems.push('Chen can see the storm clock')
 if (chen.stormActive !== null) problems.push('Chen can see that the front landed')
 if (chen.braced !== null) problems.push('Chen can see whether she is holding on')
+if (!chen.canRevoke?.length) problems.push('Chen cannot rotate a key, so a theft is unfixable')
 if (chen.alarms.some((line) => /FRONT|RUNAWAY|SIGNAL|ACK|INBOUND|IMPACT|BRACE/i.test(line))) {
   problems.push(`Chen's log is saying someone else's job: ${chen.alarms.join(' / ')}`)
 }
@@ -121,12 +145,17 @@ const spoiled = spoken.filter((line) =>
 for (const line of spoiled) problems.push(`ship said the answer out loud: "${line}"`)
 
 // --- signals are welded to one console ---
-if (!hab.applyAction('vega', { type: 'signal', signal: 'brace' })) {
+if (!(await hab.applyAction('vega', { type: 'signal', signal: 'brace', seq: 1, tag: 'x' }))) {
   problems.push('Vega was allowed to signal herself')
 }
 
+// An order nobody signed must never reach the glass, however well-formed it is.
+if (!(await hab.applyAction('sparks', { type: 'signal', signal: 'seal-port', seq: 1, tag: 'deadbeef' }))) {
+  problems.push('an unsigned order was accepted from a real seat')
+}
+
 // A call one person sends must not show up on the other two pads.
-const sent = hab.applyAction('sparks', { type: 'signal', signal: 'seal-port' })
+const sent = await send(hab, 'sparks', 'seal-port')
 if (sent) problems.push(`Chen could not send her own call: ${sent}`)
 else {
   if (view('engineer').lastSignal !== null) {
@@ -143,9 +172,22 @@ else {
 for (const [signal, owner] of Object.entries(SIGNAL_OWNER) as [SignalId, (typeof CREW_IDS)[number]][]) {
   for (const other of CREW_IDS) {
     if (other === owner) continue
-    const stolen = hab.applyAction(other, { type: 'signal', signal })
+    // Correctly signed by the wrong console. Holding a valid key is not the
+    // same as owning the call, and the server has to enforce both.
+    const stolen = await send(hab, other, signal)
     if (!stolen) problems.push(`${other} was allowed to send ${signal}`)
   }
+}
+
+// Only comms may rotate a key, whoever asks.
+for (const other of CREW_IDS) {
+  if (other === 'sparks') continue
+  if (!(await hab.applyAction(other, { type: 'revoke', seat: 'engineer' }))) {
+    problems.push(`${other} was allowed to rotate a key`)
+  }
+}
+if (!(await hab.applyAction('vega', { type: 'revoke', seat: 'engineer' }))) {
+  problems.push('Vega was allowed to rotate a key')
 }
 
 // Same second, opposite orders. If these two ever agree the fight is dead.

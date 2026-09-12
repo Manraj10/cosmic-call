@@ -1,3 +1,5 @@
+import type { SealState } from './seal.ts'
+
 export const ROLE_IDS = ['vega', 'engineer', 'pilot', 'sparks'] as const
 export type RoleId = (typeof ROLE_IDS)[number]
 export type StationId = RoleId | 'board'
@@ -44,10 +46,49 @@ export interface LobbyPlayer {
 export interface SignalEvent {
   id: string
   signal: SignalId
+  /**
+   * The seat this order *claims* to be from. GHOST claims a seat too, so this
+   * is never on its own evidence that a human pressed anything.
+   */
   from: CrewId | null
   at: number
   /** Vega has not cleared it yet. */
   fresh: boolean
+  /** Whether the signature held. The only thing separating an order from noise. */
+  seal: SealState
+  /** Four hex characters of the tag, for the operator to read. Display only. */
+  tag: string
+  /** The counter it was signed with. A repeat is how a replay shows up. */
+  seq: number
+}
+
+/** What a crew console knows about its own signing key. Never sent to Vega. */
+export interface SealView {
+  /** Pins a tag to one mission. Part of the signed line, so the phone needs it. */
+  roundId: string
+  /** This console's key. Issued at launch, rotated on every revocation. */
+  key: string
+  /** Bumps on rotation, so a phone can tell its key changed under it. */
+  epoch: number
+  /** The counter to sign the next order with. */
+  nextSeq: number
+  /**
+   * What has gone out under this key. An entry you did not press is the only
+   * warning anyone gets that GHOST is holding your key — and you have to say
+   * it out loud, because the operator's glass cannot see it.
+   */
+  log: { signal: SignalId; seq: number; mine: boolean }[]
+}
+
+export interface IncidentReport {
+  delivered: number
+  forged: number
+  replays: number
+  obeyedUnsealed: number
+  stolenFrom: CrewId | null
+  timeToRevoke: number | null
+  falseRevokes: number
+  grade: string
 }
 
 export interface ClientView {
@@ -72,7 +113,7 @@ export interface ClientView {
   pumpOn: boolean | null
   shieldsOn: boolean | null
   braced: boolean | null
-  /** Vega only: signals pushed to her glass. */
+  /** Vega only: orders pushed to her glass, sealed and unsealed alike. */
   signals: SignalEvent[]
 
   /** Engineer only. */
@@ -84,6 +125,13 @@ export interface ClientView {
   stormActive: boolean | null
   /** Sparks only. */
   alarms: string[]
+
+  /** Crew only: this console's signing key and its log. */
+  seal: SealView | null
+  /** Sparks only: comms owns the key registry, so comms owns revocation. */
+  canRevoke: CrewId[] | null
+  /** Sparks only: how long since a revoke was fired, for the cooldown read. */
+  revokeCooldownMs: number | null
 
   /** Shared by the three crew: one signal pad, one cooldown. */
   signalCooldownMs: number | null
@@ -102,6 +150,8 @@ export interface ClientView {
 
   outcome: Outcome | null
   loseReason: string | null
+  /** Filled in at the end of the round for everyone. */
+  incident: IncidentReport | null
   /** Spectator board only. */
   spectator: {
     air: number
@@ -111,6 +161,8 @@ export interface ClientView {
     shieldsOn: boolean
     valves: Record<ValveId, 'open' | 'sealed'>
     alarms: string[]
+    /** The board is the only screen that shows the bus as the room sees it. */
+    busThreat: string | null
   } | null
 }
 
@@ -120,4 +172,9 @@ export type ClientAction =
   | { type: 'shields'; on: boolean }
   | { type: 'brace' }
   | { type: 'clear-signals' }
-  | { type: 'signal'; signal: SignalId }
+  /** Crew: an order, signed on the phone before it leaves. */
+  | { type: 'signal'; signal: SignalId; seq: number; tag: string }
+  /** Sparks: rotate a seat's key. Wrong guesses cost the table a call. */
+  | { type: 'revoke'; seat: CrewId }
+
+export type { SealState }

@@ -1,5 +1,6 @@
 import { io, type Socket } from 'socket.io-client'
-import type { ClientAction, ClientView, StationId } from '@shared/types'
+import { sealOrder } from '@shared/seal'
+import type { ClientAction, ClientView, CrewId, SealView, SignalId, StationId } from '@shared/types'
 
 const override = import.meta.env.VITE_SOCKET_URL
 
@@ -17,10 +18,10 @@ export function getSocket(): Socket {
 }
 
 export function playerKey(): string {
-  const existing = sessionStorage.getItem('crosstalk.pid')
+  const existing = sessionStorage.getItem('airgap.pid')
   if (existing) return existing
   const id = crypto.randomUUID()
-  sessionStorage.setItem('crosstalk.pid', id)
+  sessionStorage.setItem('airgap.pid', id)
   return id
 }
 
@@ -50,6 +51,23 @@ export function startGame() {
 
 export function sendAction(action: ClientAction) {
   return ack('action', action)
+}
+
+/**
+ * Sign an order on this phone, then send it.
+ *
+ * The tag is computed here rather than on the server because that is the whole
+ * premise: the hab believes an order because it carries this console's key, not
+ * because a socket claimed a seat. GHOST is on the same socket transport and
+ * cannot produce one of these.
+ */
+export async function sendSignal(seal: SealView, seat: CrewId, signal: SignalId) {
+  const tag = await sealOrder(seal.key, seal.roundId, seat, signal, seal.nextSeq)
+  return sendAction({ type: 'signal', signal, seq: seal.nextSeq, tag })
+}
+
+export function revokeKey(seat: CrewId) {
+  return sendAction({ type: 'revoke', seat })
 }
 
 function ack<T = { ok: boolean }>(event: string, ...args: unknown[]): Promise<T> {

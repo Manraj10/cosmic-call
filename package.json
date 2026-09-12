@@ -12,12 +12,15 @@
     "typecheck": "tsc -b",
     "playtest": "tsx scripts/playtest.ts",
     "asymmetry": "tsx scripts/asymmetry.ts",
-    "check": "npm run typecheck && npm run lint && npm run asymmetry && npm run playtest",
-    "lint": "oxlint"
+    "check": "npm run typecheck && npm run lint && npm run crypto && npm run asymmetry && npm run playtest",
+    "lint": "oxlint",
+    "crypto": "tsx scripts/crypto.ts"
   },
   "dependencies": {
+    "@types/qrcode": "^1.5.6",
     "cors": "^2.8.6",
     "express": "^5.2.1",
+    "qrcode": "^1.5.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "socket.io": "^4.8.3",

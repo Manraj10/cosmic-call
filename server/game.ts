@@ -11,13 +11,17 @@ import type {
   ClientAction,
   ClientView,
   CrewId,
+  IncidentReport,
   LobbyPlayer,
   Outcome,
+  SealState,
   SignalEvent,
   SignalId,
   StationId,
   ValveId,
 } from '../shared/types.ts'
+import { shortTag } from '../shared/seal.ts'
+import { Bus } from './ghost.ts'
 
 type Rng = () => number
 
@@ -54,11 +58,31 @@ function airBand(air: number): AirBand {
 
 type ScriptEvent = {
   t: number
-  kind: 'leak' | 'runaway' | 'storm' | 'impact' | 'drain' | 'voice'
+  kind:
+    | 'leak'
+    | 'runaway'
+    | 'storm'
+    | 'impact'
+    | 'drain'
+    | 'voice'
+    | 'ghost-forge'
+    | 'ghost-replay'
+    | 'ghost-steal'
   valve?: ValveId
   eta?: number
   line?: string
 }
+
+/**
+   * How long after a card lands that acting on it still counts as obeying it.
+   * Only applies while the card is still un-acknowledged on her glass: the
+   * moment she bins it the entry is dropped, so doing the same thing later for
+   * a reason of her own is never charged to GHOST. Punishing a coincidence
+   * would make the honest operator the one who loses.
+   */
+const OBEY_WINDOW_SECONDS = 3
+/** A revocation costs the table a call, so it runs on its own short lockout. */
+const REVOKE_COOLDOWN_MS = 5000
 
 export interface SpeakPacket {
   text: string
@@ -129,6 +153,19 @@ export class Hab {
   private outcome: Outcome | null = null
   private loseReason: string | null = null
   private seq = 1
+
+  /** Key registry, replay window and GHOST itself. Rebuilt every round. */
+  private bus = new Bus('lobby')
+  private lastRevokeAt = -99
+  private incident: IncidentReport | null = null
+  /** What the room's big screen is allowed to say about the bus. */
+  private busThreat: string | null = null
+  /**
+   * Orders that arrived without a good seal, and when. If the operator performs
+   * one of these shortly after it lands she did what GHOST asked, and that is
+   * the only thing in the round that is genuinely her fault.
+   */
+  private unsealedAsk: { signal: SignalId; at: number }[] = []
 
   constructor(code: string, host: PlayerRec, seed = Date.now()) {
     this.code = code
@@ -211,6 +248,11 @@ export class Hab {
 
   private begin() {
     this.rng = mulberry32(this.seed)
+    this.bus = new Bus(`${this.code}-${this.seed}`)
+    this.lastRevokeAt = -99
+    this.incident = null
+    this.busThreat = null
+    this.unsealedAsk = []
     this.script = this.buildScript()
     this.phase = 'play'
     this.elapsed = 0
@@ -219,8 +261,11 @@ export class Hab {
     this.power = 70
     this.seams = 0
     this.seamBlown = false
-    this.alarms = ['HAB-7 IN THE DUST CORRIDOR', 'PLANT IS LIVE']
-    this.speak('Ninety seconds. Talk to each other. Send her a picture.', 'astronaut')
+    this.alarms = ['HAB-7 IN THE DUST CORRIDOR', 'PLANT IS LIVE', 'BUS KEYS ISSUED — 3 CONSOLES']
+    this.speak(
+      'Ninety seconds. Talk to each other. Sign every order before you send it.',
+      'astronaut',
+    )
     this.listener?.onView()
     this.tickTimer = setInterval(() => this.tick(0.1), 100)
   }
@@ -236,11 +281,21 @@ export class Hab {
     const secondValve: ValveId = firstValve === 'port' ? 'starboard' : 'port'
     const stormWarnAt = 38 + Math.floor(this.rng() * 5)
     const stormLead = 15 + Math.floor(this.rng() * 5)
+    // GHOST wakes after the crew has learned to trust the glass. Forgery first,
+    // because a broken seal is the cheap lesson; the stolen key lands last,
+    // once they have stopped reading the badge.
+    const wake = 26 + Math.floor(this.rng() * 4)
     return [
       { t: 8, kind: 'leak', valve: firstValve },
       { t: 24, kind: 'runaway' },
+      { t: wake, kind: 'ghost-forge' },
+      { t: wake + 9, kind: 'ghost-forge' },
       { t: stormWarnAt, kind: 'storm', eta: stormLead },
+      { t: stormWarnAt + 6, kind: 'ghost-replay' },
       { t: stormWarnAt + stormLead, kind: 'impact' },
+      { t: 58, kind: 'ghost-steal' },
+      { t: 64, kind: 'ghost-forge' },
+      { t: 73, kind: 'ghost-forge' },
       { t: 82, kind: 'leak', valve: secondValve },
     ].sort((a, b) => a.t - b.t) as ScriptEvent[]
   }
@@ -321,6 +376,47 @@ export class Hab {
         } else {
           this.speak('Still in one piece.', 'astronaut')
         }
+        break
+      }
+      case 'ghost-forge': {
+        const pickedAt = this.elapsed
+        const shot = this.bus.pickHarmful({
+          air: this.air,
+          power: this.power,
+          pumpOn: this.pumpOn,
+          stormActive: this.stormActive,
+          leaking: VALVES.filter((v) => this.leaks[v]),
+          sealedValves: VALVES.filter((v) => this.valves[v] === 'sealed'),
+          correct: this.correctNow(),
+        })
+        // Signing is async and the tick is not. The card lands a frame later,
+        // which is indistinguishable from network jitter and costs nothing.
+        void this.bus.forge(shot.seat, shot.signal, pickedAt).then((f) => {
+          if (this.phase !== 'play') return
+          this.pushSignal(shot.signal, shot.seat, f.seal, f.tag, f.seq)
+          this.alarm('BUS: UNSIGNED TRAFFIC')
+          this.busThreat = 'FORGED ORDERS ON THE BUS'
+          this.speak('Somebody else is on our frequency.', 'astronaut')
+          this.listener?.onView()
+        })
+        break
+      }
+      case 'ghost-replay': {
+        const shot = this.bus.replay()
+        if (!shot) break
+        // A real order, real signature, wrong moment. The counter is the tell.
+        this.pushSignal(shot.signal, shot.seat, 'stale', shot.tag, shot.seq)
+        this.alarm('BUS: REPEATED COUNTER')
+        this.busThreat = 'AN OLD ORDER CAME BACK'
+        break
+      }
+      case 'ghost-steal': {
+        const victim = this.bus.pickVictim(this.rng)
+        this.bus.steal(victim, this.elapsed)
+        // Nothing is announced. The victim's own signing log is the only tell,
+        // and the operator's glass will now call these orders genuine.
+        this.busThreat = 'A KEY IS LOOSE'
+        this.speak('That did not come from any of you.', 'astronaut')
         break
       }
       case 'voice':
@@ -425,12 +521,30 @@ export class Hab {
     }
     const anyCrewSeated = CREW_IDS.some((c) => this.isSeated(c))
     if (!anyCrewSeated && this.elapsed - this.lastSignalAt > 6) {
-      if (this.elapsed < this.runawayUntil) this.pushSignal('pump-off', null)
-      else if (this.stormEta != null && this.stormEta < 8) this.pushSignal('brace', null)
+      // The sim is inside the trust boundary — it is the hab covering its own
+      // empty seats, not traffic arriving over the bus, so it is not signed.
+      if (this.elapsed < this.runawayUntil) {
+        this.lastSignalAt = this.elapsed
+        this.pushSignal('pump-off', 'engineer', 'sealed', 'SIM0', 0)
+      } else if (this.stormEta != null && this.stormEta < 8) {
+        this.lastSignalAt = this.elapsed
+        this.pushSignal('brace', 'pilot', 'sealed', 'SIM0', 0)
+      }
+    }
+    // Nobody at comms to catch a stolen key, so the hab eventually catches it
+    // itself. Slowly, and only when the seat is genuinely empty.
+    if (!this.isSeated('sparks') && this.bus.stolenFrom && this.elapsed - (this.bus.stolenAt ?? 0) > 14) {
+      this.bus.revoke(this.bus.stolenFrom, this.elapsed)
+      this.alarm('BUS: KEY ROTATED')
     }
   }
 
-  applyAction(playerId: string, action: ClientAction): string | null {
+  /**
+   * Async because verifying a signature is. Every order from a crew phone gets
+   * checked here and nowhere else, so there is exactly one place where an
+   * unsigned order could get in, and it is thirty lines long.
+   */
+  async applyAction(playerId: string, action: ClientAction): Promise<string | null> {
     if (this.phase !== 'play') return 'Mission not live'
     const p = this.players.get(playerId)
     if (!p?.role || p.role === 'board') return 'You are spectating'
@@ -443,12 +557,51 @@ export class Hab {
       if (owner !== role) return 'Not your call to make'
       const remain = SIGNAL_COOLDOWN_MS - (this.elapsed - this.lastSignalAt) * 1000
       if (remain > 0) return 'Pad is still resetting'
-      this.pushSignal(action.signal, role as CrewId)
+
+      const seat = role as CrewId
+      const seal = await this.bus.verify(
+        seat,
+        action.signal,
+        action.seq,
+        action.tag,
+        this.elapsed,
+      )
+      // A crew phone whose own tag will not verify is holding a rotated key.
+      // Refusing it here rather than forwarding it keeps the glass honest.
+      if (seal !== 'sealed') return 'Your key was rotated — the pad re-keyed, send it again'
+
+      this.lastSignalAt = this.elapsed
+      this.lastSignalBy[seat] = action.signal
+      this.pushSignal(action.signal, seat, seal, action.tag, action.seq)
+      this.listener?.onView()
+      return null
+    }
+
+    if (action.type === 'revoke') {
+      // Comms holds the key registry. That is the whole reason GHOST never
+      // steals their key: somebody has to be able to fix this.
+      if (role !== 'sparks') return 'Comms owns the key registry'
+      const wait = REVOKE_COOLDOWN_MS - (this.elapsed - this.lastRevokeAt) * 1000
+      if (wait > 0) return 'Registry is still writing'
+      this.lastRevokeAt = this.elapsed
+      const { caught } = this.bus.revoke(action.seat, this.elapsed)
+      this.alarm(
+        caught
+          ? `KEY ROTATED — ${action.seat.toUpperCase()} WAS COMPROMISED`
+          : `KEY ROTATED — ${action.seat.toUpperCase()} WAS CLEAN`,
+      )
+      if (caught) {
+        this.busThreat = null
+        this.speak('Key rotated. They are off the bus.', 'astronaut')
+      } else {
+        this.gripe(action.seat, 'COMMS ROTATED YOUR KEY. YOU WERE FINE. SEND IT AGAIN.')
+      }
       this.listener?.onView()
       return null
     }
 
     if (role !== 'vega') return 'Only Vega can touch the ship'
+    this.obeyCheck(action)
 
     switch (action.type) {
       case 'valve':
@@ -486,21 +639,102 @@ export class Hab {
           this.lastAckedFrom = latest.from
         }
         this.signals = this.signals.map((s) => ({ ...s, fresh: false }))
+        // Binning the card ends any chance of being charged with obeying it.
+        this.unsealedAsk = []
         break
     }
     this.listener?.onView()
     return null
   }
 
-  private pushSignal(signal: SignalId, from: CrewId | null) {
-    this.lastSignalAt = this.elapsed
-    if (from) this.lastSignalBy[from] = signal
+  /**
+   * Put a card on the glass. Does not touch the crew's shared cooldown — GHOST
+   * does not queue behind the pad, which is exactly why a forgery flood is
+   * dangerous rather than merely annoying.
+   */
+  private pushSignal(
+    signal: SignalId,
+    from: CrewId | null,
+    seal: SealState,
+    tag: string,
+    seq: number,
+  ) {
     this.lastAckedFrom = null
+    this.bus.delivered += 1
+    if (seal !== 'sealed') this.unsealedAsk = [...this.unsealedAsk.slice(-5), { signal, at: this.elapsed }]
     this.signals = [
       ...this.signals.slice(-5),
-      { id: String(this.seq++), signal, from, at: Date.now(), fresh: true },
+      {
+        id: String(this.seq++),
+        signal,
+        from,
+        at: Date.now(),
+        fresh: true,
+        seal,
+        tag: shortTag(tag),
+        seq,
+      },
     ]
     // Do not announce the call. The other two find out by asking.
+  }
+
+  /**
+   * The orders that are genuinely the right call this instant. Only GHOST reads
+   * this, and only so it can avoid sending one of them by accident.
+   */
+  private correctNow(): SignalId[] {
+    const want: SignalId[] = []
+    const runaway = this.elapsed < this.runawayUntil
+    const leaking = VALVES.filter((v) => this.leaks[v] && this.valves[v] !== 'sealed')
+    if ((runaway || this.stormActive) && this.pumpOn) want.push('pump-off')
+    if (this.stormEta != null && !this.stormActive) want.push('brace', 'shields-on')
+    if (this.stormActive && !this.shieldsOn) want.push('shields-on')
+    for (const v of leaking) want.push(v === 'port' ? 'seal-port' : 'seal-starboard')
+    if (!this.stormActive && !runaway && !this.pumpOn && this.air < 72) want.push('pump-on')
+    return want
+  }
+
+  /** Which order a control maps to, so obeying a bad card is detectable. */
+  private askedBy(action: ClientAction): SignalId | null {
+    switch (action.type) {
+      case 'pump':
+        return action.on ? 'pump-on' : 'pump-off'
+      case 'valve':
+        return action.sealed ? (action.valve === 'port' ? 'seal-port' : 'seal-starboard') : null
+      case 'shields':
+        return action.on ? 'shields-on' : null
+      case 'brace':
+        return 'brace'
+      default:
+        return null
+    }
+  }
+
+  /**
+   * The teeth. Doing what an unsealed card asked, while it is still on the
+   * glass, costs air and goes in the report. Nothing else in the round blames
+   * the operator for anything.
+   */
+  private obeyCheck(action: ClientAction) {
+    const asked = this.askedBy(action)
+    if (!asked) return
+    const live = new Set(
+      this.signals.filter((s) => s.fresh && s.seal !== 'sealed').map((s) => s.signal),
+    )
+    const hit = this.unsealedAsk.find(
+      (u) =>
+        u.signal === asked &&
+        this.elapsed - u.at <= OBEY_WINDOW_SECONDS &&
+        // Still on the glass. Binned cards cannot be obeyed.
+        live.has(u.signal),
+    )
+    if (!hit) return
+    this.unsealedAsk = this.unsealedAsk.filter((u) => u !== hit)
+    this.bus.obeyedUnsealed += 1
+    this.air = clamp(this.air - 11, 0, 120)
+    this.alarm('GHOST ORDER EXECUTED')
+    this.gripe('vega', 'THAT SEAL WAS BROKEN. YOU JUST DID WHAT GHOST ASKED.')
+    this.speak('That order was not one of ours.', 'astronaut')
   }
 
   private alarm(line: string) {
@@ -532,6 +766,13 @@ export class Hab {
     const fresh = this.signals.filter((s) => s.fresh).at(-1)
 
     if (role === 'vega') {
+      // Reading the badge outranks everything else on her glass.
+      if (fresh && fresh.seal === 'broken') {
+        return { text: 'BROKEN SEAL. NOBODY SIGNED THAT. DO NOT DO IT.', tone: 'fight' }
+      }
+      if (fresh && fresh.seal === 'stale') {
+        return { text: 'OLD COUNTER — THIS ORDER ALREADY RAN ONCE.', tone: 'fight' }
+      }
       if (fresh?.signal === 'pump-off' && air < 92) {
         return { text: 'THEY WANT THE PUMP OFF. YOUR AIR SAYS ABSOLUTELY NOT.', tone: 'fight' }
       }
@@ -601,6 +842,7 @@ export class Hab {
     this.phase = 'end'
     this.outcome = outcome
     this.loseReason = reason
+    this.incident = this.bus.report()
     this.stopClock()
     this.speak(
       outcome === 'won'
@@ -609,6 +851,23 @@ export class Hab {
       'astronaut',
     )
     this.listener?.onView()
+  }
+
+  /**
+   * A console's own key material and its outgoing log. Never assembled for
+   * Vega or the board — the operator holding a crew key would let her verify
+   * for herself, and the whole game is that she cannot.
+   */
+  private sealView(seat: CrewId) {
+    return {
+      roundId: this.bus.roundId,
+      key: this.bus.keyFor(seat),
+      epoch: this.bus.epochFor(seat),
+      nextSeq: this.bus.seqFor(seat),
+      log: this.bus
+        .logFor(seat)
+        .map((e) => ({ signal: e.signal, seq: e.seq, mine: e.mine })),
+    }
   }
 
   lobbyPlayers(): LobbyPlayer[] {
@@ -657,6 +916,9 @@ export class Hab {
       stormEta: null,
       stormActive: null,
       alarms: [],
+      seal: null,
+      canRevoke: null,
+      revokeCooldownMs: null,
       signalCooldownMs: null,
       lastSignal: null,
       ackAgeMs: null,
@@ -664,6 +926,7 @@ export class Hab {
       gripe: null,
       outcome: this.outcome,
       loseReason: this.loseReason,
+      incident: this.incident,
       spectator: null,
     }
 
@@ -697,6 +960,7 @@ export class Hab {
         ...base,
         power: Math.round(this.power),
         draw: Math.round(this.busDraw * 10) / 10,
+        seal: this.sealView('engineer'),
         signalCooldownMs: cooldown,
         lastSignal: this.lastSignalBy.engineer,
         ackAgeMs: ackFor('engineer'),
@@ -710,6 +974,7 @@ export class Hab {
         ...base,
         stormEta: this.stormEta,
         stormActive: this.stormActive,
+        seal: this.sealView('pilot'),
         signalCooldownMs: cooldown,
         lastSignal: this.lastSignalBy.pilot,
         ackAgeMs: ackFor('pilot'),
@@ -722,6 +987,12 @@ export class Hab {
       return {
         ...base,
         alarms: this.alarms,
+        seal: this.sealView('sparks'),
+        canRevoke: [...CREW_IDS],
+        revokeCooldownMs:
+          this.phase === 'play'
+            ? Math.max(0, REVOKE_COOLDOWN_MS - (this.elapsed - this.lastRevokeAt) * 1000)
+            : 0,
         signalCooldownMs: cooldown,
         lastSignal: this.lastSignalBy.sparks,
         ackAgeMs: ackFor('sparks'),
@@ -742,6 +1013,7 @@ export class Hab {
           shieldsOn: this.shieldsOn,
           valves: { ...this.valves },
           alarms: this.alarms,
+          busThreat: this.busThreat,
         },
       }
     }

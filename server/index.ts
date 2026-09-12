@@ -70,50 +70,82 @@ function bind(hab: Hab) {
 }
 
 /**
- * Server-side voice proxy. The xAI key stays on the host machine and is never
- * shipped to a phone. Without a key, clients fall back to browser speech.
+ * Server-side voice proxy: ElevenLabs, then xAI, then nothing.
+ *
+ * Every key stays on the host machine and is never shipped to a phone. With no
+ * key at all this route answers 501 and each client speaks with the browser's
+ * own engine, so the game has no setup step and no hard dependency on either
+ * vendor being reachable from a conference hall.
+ *
+ * Vega is never sent a speech event in the first place, so this route is not
+ * what protects her — `hearsSpeech` is. This only decides how good the radio
+ * sounds for everyone else.
  */
-app.post('/api/voice', async (req, res) => {
-  const key = process.env.XAI_API_KEY
-  if (!key) {
-    res.status(501).json({ error: 'no-key' })
-    return
+async function elevenLabs(text: string): Promise<Response | null> {
+  const key = process.env.ELEVENLABS_API_KEY
+  if (!key) return null
+  const voice = process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM'
+  try {
+    const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
+      body: JSON.stringify({
+        text,
+        model_id: process.env.ELEVENLABS_MODEL || 'eleven_flash_v2_5',
+        voice_settings: { stability: 0.35, similarity_boost: 0.8 },
+      }),
+    })
+    return r.ok ? r : null
+  } catch {
+    return null
   }
+}
+
+async function grokVoice(text: string): Promise<Response | null> {
+  const key = process.env.XAI_API_KEY
+  if (!key) return null
+  try {
+    const r = await fetch(process.env.XAI_TTS_URL || 'https://api.x.ai/v1/audio/speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: process.env.XAI_TTS_MODEL || 'grok-voice',
+        voice: process.env.XAI_TTS_VOICE || 'ember',
+        input: text,
+      }),
+    })
+    return r.ok ? r : null
+  } catch {
+    return null
+  }
+}
+
+app.post('/api/voice', async (req, res) => {
   const text = String((req.body as { text?: string })?.text ?? '').slice(0, 400)
   if (!text) {
     res.status(400).json({ error: 'no-text' })
     return
   }
-  try {
-    const upstream = await fetch(
-      process.env.XAI_TTS_URL || 'https://api.x.ai/v1/audio/speech',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${key}`,
-        },
-        body: JSON.stringify({
-          model: process.env.XAI_TTS_MODEL || 'grok-voice',
-          voice: process.env.XAI_TTS_VOICE || 'ember',
-          input: text,
-        }),
-      },
-    )
-    if (!upstream.ok) {
-      res.status(502).json({ error: 'upstream', status: upstream.status })
-      return
-    }
-    const buf = Buffer.from(await upstream.arrayBuffer())
-    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'audio/mpeg')
-    res.send(buf)
-  } catch {
-    res.status(502).json({ error: 'unreachable' })
+  const upstream = (await elevenLabs(text)) ?? (await grokVoice(text))
+  if (!upstream) {
+    res.status(501).json({ error: 'no-voice' })
+    return
   }
+  const buf = Buffer.from(await upstream.arrayBuffer())
+  res.setHeader('Content-Type', upstream.headers.get('content-type') || 'audio/mpeg')
+  res.send(buf)
 })
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, habs: habs.size, voice: process.env.XAI_API_KEY ? 'grok' : 'browser' })
+  res.json({
+    ok: true,
+    habs: habs.size,
+    voice: process.env.ELEVENLABS_API_KEY
+      ? 'elevenlabs'
+      : process.env.XAI_API_KEY
+        ? 'grok'
+        : 'browser',
+  })
 })
 
 io.on('connection', (socket) => {
@@ -202,10 +234,12 @@ io.on('connection', (socket) => {
     cb?.(err ? { ok: false, error: err } : { ok: true })
   })
 
-  socket.on('action', (action: ClientAction, cb?: (res: unknown) => void) => {
+  socket.on('action', async (action: ClientAction, cb?: (res: unknown) => void) => {
     const hab = habForSocket(socket)
     if (!hab) return cb?.({ ok: false, error: 'No hab' })
-    const err = hab.applyAction(socket.data.playerId, action)
+    // Verifying a signature is async, so an order is acknowledged only once the
+    // seal has actually been checked. A phone that gets `ok` was believed.
+    const err = await hab.applyAction(socket.data.playerId, action)
     cb?.(err ? { ok: false, error: err } : { ok: true })
   })
 

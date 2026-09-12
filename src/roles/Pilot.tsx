@@ -2,6 +2,7 @@ import { CREW_META } from '@shared/content'
 import type { ClientView } from '@shared/types'
 import { Demand } from '../components/Demand'
 import { Frame } from '../components/Frame'
+import { KeyLog } from '../components/Seal'
 import { SignalPad } from '../components/SignalPad'
 import { StormScope } from '../components/StormScope'
 
@@ -30,6 +31,7 @@ export function Pilot({ view }: { view: ClientView }) {
         </div>
       </div>
       <div className="grow" />
+      <KeyLog view={view} />
       <SignalPad view={view} crew="pilot" />
     </Frame>
   )

@@ -3,6 +3,7 @@ import type { ClientView } from '@shared/types'
 import { Demand } from '../components/Demand'
 import { Frame } from '../components/Frame'
 import { PowerCells } from '../components/PowerCells'
+import { KeyLog } from '../components/Seal'
 import { SignalPad } from '../components/SignalPad'
 
 export function Engineer({ view }: { view: ClientView }) {
@@ -37,6 +38,7 @@ export function Engineer({ view }: { view: ClientView }) {
         </div>
       </div>
       <div className="grow" />
+      <KeyLog view={view} />
       <SignalPad view={view} crew="engineer" />
     </Frame>
   )

@@ -1,31 +1,71 @@
-# CROSSTALK
+# AIRGAP
 
-**Four phones. Four opposite alerts. Power tells oxygen to kill the pump. Oxygen says absolutely not.**
+**Four phones, one table, ninety seconds. The only person who can touch the ship cannot hear you, and something on the comms bus is writing orders in her name.**
 
-A 90-second, same-table party game for 4 phones. Like *Keep Talking and Nobody Explodes*, except you cannot shout the answer at the person holding the bomb. You send them a picture.
+Mars habitat HAB-7, caught in a dust storm. Three emergencies land in ninety seconds. No installs, no accounts: everyone opens a URL or scans the QR code in the lobby.
 
-<img alt="Crosstalk" src="public/art/hero-hab.webp" width="640" />
+<img alt="AIRGAP" src="public/art/hero-hab.webp" width="640" />
 
-## The idea
+## The table
 
-Each of the four astronauts can perceive exactly one thing, and nobody else can see it:
-
-| Seat | Station | Sees | Can send |
+| Seat | Station | Can see | Can send |
 |---|---|---|---|
-| **Vega** | Oxygen | Cabin air % | Nothing. Every control. Pictures slam the glass |
-| **Rook** | Power | Reactor % | `PUMP OFF` · `PUMP ON` |
-| **Idris** | Navigation | Storm clock | `SHIELDS` · `BRACE` |
-| **Chen** | Communications | Alarm log | `SEAL PORT` · `SEAL STBD` |
+| **VEGA** | Oxygen | Cabin air %, and nothing else | Nothing. Holds every physical control |
+| **ROOK** | Power | Reactor power, bus draw | `PUMP OFF` · `PUMP ON` |
+| **IDRIS** | Navigation | The dust-storm clock | `SHIELDS` · `BRACE` |
+| **CHEN** | Communications | The alarm log — what actually broke | `SEAL PORT` · `SEAL STBD` · the key registry |
 
-Rook, Idris and Chen can shout across the table all they like. **They have to** — at each other. The ship will not name what broke, and nobody's screen carries anyone else's number. The only thing that officially reaches Vega is a **picture slamming their glass**, and every picture is welded to exactly one console. Chen is the only person alive who can send the leaking valve. Rook is the only one who can see the reactor draw spike. Idris is the only one who can see the storm clock. All three share one 4-second cooldown, so a wasted press is wasted for everybody.
+Vega holds the port valve, the starboard valve, the air pump, the dust shields and the brace. She is the only one who can move any of them. She receives no voice, no mission clock, no power reading, no storm clock and no alarm text. The server never sends her a speech event.
 
-You do not need earplugs. People will hear the table anyway. The pictures are the channel so the game still works in a noisy room.
+Her one inbound channel is an order card that slams her whole phone screen. Her one outbound channel is a single bit: an acknowledge that turns the sender's line green.
 
-So the game is: diagnose out loud, work out whose call it is, then fire one picture at Vega before the air runs out.
+Rook, Idris and Chen can shout at each other across the table, and they have to. Nobody can see anyone else's screen. The ship never names what broke. Every order card is welded to exactly one console, so Chen is the only human alive who can tell Vega which valve is bleeding. All three crew share **one 4-second cooldown**, so a wasted press is wasted for everybody.
 
-Three emergencies hit in 90 seconds — a valve leak, a pump runaway, and a dust storm — and Vega can't perceive any of them on her own. **There is one order that survives all three.** Any seat that goes quiet kills the hab: the harness in `scripts/playtest.ts` asserts it.
+Three emergencies — a valve leak, a pump runaway, a dust storm — and the person with the hands can perceive none of them. Empty seats are covered by the sim, so the game runs with two players or one.
 
-Vega's only way back is one bit — an **acknowledge** button that turns the sender's line green, so she can say "I saw it" and nothing more. Everything else she wants to say, she says out loud. The block on her is one-directional.
+## The seal
+
+Every order that reaches Vega's glass is signed by the console that sent it.
+
+The signature is HMAC-SHA256 over a canonical line, `roundId|seat|signal|seq`, using a per-seat key issued at launch. The crew phone computes the tag before the order leaves. The server verifies it against the full 256-bit tag with a constant-time compare. Vega sees the first four hex characters as a badge on the card.
+
+In plain terms: each console has a private stamp, and only that console can produce a stamp the ship will accept. If the stamp on a card is wrong, the card is not from the person it claims to be from.
+
+Three badges:
+
+| Badge | What happened | Should Vega obey it? |
+|---|---|---|
+| `SEALED` | Signature verified, counter moved forward | Yes |
+| `BROKEN SEAL` | Signature did not verify. Somebody without the key wrote this | No |
+| `OLD COUNTER` | Signature verified, but the counter was already used. A replay | No |
+
+Doing what an unsealed card asked, while that card is still on the glass, costs air and is recorded. Nothing else in the round blames Vega for anything.
+
+## GHOST
+
+There is an adversary on the comms bus. It attacks in the order a real incident goes.
+
+**1. Forgery, around t=26s.** GHOST writes order cards it is not entitled to write. The signature does not verify, so the card lands on Vega's glass reading `BROKEN SEAL`. GHOST does not queue behind the crew's shared cooldown, so it can flood her — the real order has to be dug out of the forgeries under time pressure. It does not pick at random either. It picks the order that hurts most right now: `PUMP ON` while the cabin is already over-pressure, which blows a seam; `PUMP OFF` while air is low; a `SEAL` on the valve that is *not* leaking, which starves the intake instead of the leak.
+
+**2. Replay, around t=44s.** GHOST re-sends a real, genuinely signed order at a moment when it is the wrong call. The signature verifies, because it is a real signature. The monotonic counter is the only tell, so the card reads `OLD COUNTER`.
+
+**3. Key theft, t=58s.** GHOST steals one crew seat's signing key. Never Chen's — somebody has to be able to fix this. From that point its forgeries from that seat verify, and Vega's glass calls them `SEALED`. She cannot tell. Nothing on her screen can tell her.
+
+The only evidence anywhere in the game is one line in the victim's own signing log: an order signed under their key that they did not press. They cannot send that fact to Vega, because she cannot receive. They have to say it out loud, to whoever is sitting at comms. Chen then rotates that seat's key from the key registry, which throws GHOST off the bus.
+
+Rotating a seat that was actually clean voids that console's in-flight tag and costs the table a call. So revocation is not a button you mash. It is a call you make on somebody's word.
+
+## The incident report
+
+The round does not end in a score. It ends in a report: orders delivered, how many GHOST forged, how many replays, how many unsealed orders were obeyed, which seat's key was stolen, time-to-revoke in seconds, false revocations, and a grade line.
+
+```
+CLEAN — nothing GHOST wrote ever moved the ship
+HELD — every order you executed was a real one
+BREACHED 2 TIMES — the glass was being driven by GHOST
+```
+
+That report is the thing people argue about afterwards.
 
 ## Run it
 
@@ -38,99 +78,94 @@ npm run dev
 
 Open **http://127.0.0.1:43127**
 
-## Play with real people
+## Play with real people on phones
 
-Only **one** machine runs the server. Everyone else joins it over the same Wi‑Fi.
+Exactly **one** machine runs the server. Everyone else joins it over the same Wi-Fi.
 
-1. One laptop: `npm run dev`
-2. Find its LAN IP — macOS `ipconfig getifaddr en0`, Windows `ipconfig`, Linux `ip addr`
-3. Everyone opens `http://THAT_IP:43127` on their phone
-4. One person taps **open a hab**, reads the 4-letter code aloud, everyone else **climbs aboard**
-5. Take seats, everyone marks ready, hab lead launches
+1. One laptop runs `npm run dev`.
+2. Find that laptop's LAN IP. Windows `ipconfig`, macOS `ipconfig getifaddr en0`, Linux `ip addr`.
+3. Everyone opens `http://THAT_IP:43127` on their phone, or scans the QR code in the lobby.
+4. One person opens a hab and reads the four-letter code aloud. Everyone else climbs aboard.
+5. Claim seats, mark ready, hab lead launches.
 
-Two `npm run dev` processes means two separate habs that can't see each other. Just one.
+Two `npm run dev` processes means two separate habs that cannot see each other. Run one.
 
-Allow the firewall prompt on first run. If device-to-device traffic is blocked (common on campus and hotel Wi‑Fi), tether everything to a phone hotspot.
+Allow the firewall prompt on first launch. If device-to-device traffic is blocked, which is normal on campus and hotel Wi-Fi, tether every phone to one phone hotspot.
 
-Empty seats are covered by the sim, so you can test alone or with two.
+## Three house rules
 
-### Three house rules
+The software enforces the channel. Vega's client is never sent the fields she must not know, and the crew have no text input to her. These three are on you:
 
-The software enforces the channel — Vega's client is never sent the ship's voice, and the crew have no text input to her. These three are on you:
+- **Watch the glass, not the table.** The official order is the card, even when you can hear people shouting the answer.
+- **Nobody hands Vega their phone.**
+- **Everyone gets a turn as Vega.** This is the point of the design, not a courtesy.
 
-- **Watch the glass, not the table.** The official order is the picture, even if you can hear people shouting.
-- Nobody hands Vega their phone.
-- Everyone gets a turn as Vega.
-
-## Voice
-
-The ship talks. This works with no setup — it uses the browser's built-in speech engine, and Vega's phone is never sent a speech event in the first place.
-
-For better audio (and the xAI sponsor angle), set a key **on the host machine only**:
-
-```bash
-XAI_API_KEY=xai-... npm run dev
-```
-
-The key stays server-side and is proxied through `/api/voice`, so it never ships to a phone. Check which path is live with `curl localhost:43128/api/health`. When Grok audio is used it gets a band-pass filter so it sounds like a suit radio.
-
-## Layout
-
-```
-server/game.ts       the whole simulation — air, power, storm, the 3 emergencies
-server/index.ts      socket plumbing + the voice proxy
-shared/              types and copy, imported by both sides
-src/roles/           one file per console
-src/components/      SVG instruments: air gauge, storm scope, power cells
-scripts/asymmetry.ts asserts Vega is cut off and each seat sees only its own thing
-scripts/playtest.ts  headless balance harness
-```
-
-## Check it still works
+## Harnesses
 
 ```bash
 npm run check
 ```
 
-Typecheck, lint, then the two harnesses below. Worth running before you present.
-
-### Is the asymmetry intact?
+Typecheck, lint, then the three harnesses below. Run it before you present.
 
 ```bash
 npm run asymmetry
 ```
 
-Asserts the rule the whole game rests on: the ship's voice never routes to Vega, her view contains the air and nothing else, each crew member sees only their own readout, and a signal sent from the wrong console is refused. This is a correctness check, not a tuning one — if a field leaks into her view the game quietly becomes solitaire, and that has already happened once.
+Asserts the rule the whole game rests on: Vega is cut off, each seat sees only its own readout, and an order sent from the wrong console is refused. This is a correctness check, not a tuning one. If a field leaks into her view, the game quietly becomes solitaire, and that has already happened once.
 
-### Is the balance still right?
+```bash
+npm run crypto
+```
+
+Asserts forged tags are rejected, replayed counters are rejected, a rotated key invalidates old tags, and the two HMAC paths produce byte-identical output.
 
 ```bash
 npm run playtest
 ```
 
-Simulates crews at different reaction speeds, then silences each player in turn, then silences each individual call. It asserts the things the design depends on: relaying in the right order survives, no seat can be left empty, and no call is decoration.
+Headless balance harness. It silences each player in turn, then each individual call in turn, and asserts that no seat can be left empty and no call is decoration.
 
-```
-=== the one path ===
-all three, sharp (1.2s)        won 8/8   air floor  24
-all three, normal (2.2s)       won 8/8   air floor  20
-all three, slow (3.6s)         won 8/8   air floor  14
-all three, sloppy (5.0s)       won 0/8   air floor   0
-all three + Vega on her gauge  won 8/8   air floor  20
+## Voice
 
-=== every seat is load-bearing ===
-Rook silent (no pump calls)    won 0/8   air floor   0
-Idris silent (no storm calls)  won 0/8   air floor  48
-Chen silent (no valve calls)   won 0/8   air floor   0
-nobody signals at all          won 0/8   air floor   0
-Vega alone, playing her gauge  won 0/8   air floor   0
+Mission Control speaks. The server proxies ElevenLabs text-to-speech, falls back to xAI/Grok, and falls back again to the browser's own speech engine — so the game works with zero keys and no setup.
 
-=== and so is every single call ===
-brace never called             won 0/8   air floor   0
-shields never called           won 0/8   air floor   0
-pump-off never called          won 0/8   air floor   0
+```bash
+ELEVENLABS_API_KEY=...
+ELEVENLABS_VOICE_ID=...
+XAI_API_KEY=...
 ```
 
-Two of those rows are the interesting ones. **Vega alone** is a Vega who ignores the pad and plays her air gauge as well as anyone could — she still dies every time, because two of the three emergencies are invisible to her. And **sloppy (5.0s)** is where the cliff is: a crew that dawdles by another second and a half over the slow crew goes from 8/8 to 0/8.
+Keys live on the host machine and are never shipped to a phone. Check which path is live:
 
-If you want to soften it for a demo, the dials that matter are `MISSION_SECONDS` in `shared/content.ts` and the starting air in `server/game.ts`. Lower starting air is *not* a difficulty knob — it drops the cabin below the overpressure ceiling and turns the pump runaway into free air, which inverts the whole design.
+```bash
+curl localhost:43128/api/health
+```
+
+Vega is never sent a speech event at all, so the voice path is not what protects her. `hearsSpeech()` is.
+
+## How this is built
+
+Vite + React 19 + TypeScript on the phones. Node + Express + Socket.io on the host. One authoritative server owns one hab state, and each phone renders a different slice of it. Mobile web with a PWA manifest, no installs.
+
+```
+server/game.ts        the simulation — air, power, storm, the three emergencies
+server/ghost.ts       the key registry, the replay window, and GHOST
+shared/seal.ts        the signing primitive and both HMAC paths
+shared/               types and copy, imported by both sides
+src/roles/            one file per console
+src/components/Seal.tsx  the seal badge, signing log and key registry UI
+scripts/              the three harnesses
+```
+
+**Two HMAC implementations, on purpose.** `crypto.subtle` only exists in a secure context. Phones join this game by pointing a camera at `http://192.168.x.x:43127` on venue Wi-Fi, which is not a secure context, so `crypto.subtle` is `undefined` on every real player device. Serving HTTPS would put a certificate warning between a judge and the game. So the code uses the platform primitive where it exists — the server always has it — and falls back to a hand-written FIPS 180-4 SHA-256 plus RFC 2104 HMAC where it does not. `npm run crypto` pins the two together, because a phone signing differently from the server would not fail loudly. It would look exactly like GHOST.
+
+**The asymmetry is server-side.** Vega's client is never *sent* the fields she must not know. It is not hidden in CSS. `scripts/asymmetry.ts` asserts it.
+
+### What the seal is, honestly
+
+The signing key is a symmetric, server-issued secret — the same shape as an HS256 token. This is not end-to-end secrecy, and nothing here is confidential from the server. The property it buys is **integrity**: the hab can tell an order a crew member actually pressed from one GHOST wrote on the bus. That is the property the game is about.
+
+## Lineage
+
+AIRGAP is two earlier builds from this window combined into one. `lineage/habitat` preserves the Mars-habitat build as it stood, with `lineage/habitat-local` as its local snapshot. `main` is the combined game.

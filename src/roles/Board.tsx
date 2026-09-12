@@ -13,6 +13,7 @@ export function Board({ view }: { view: ClientView }) {
   return (
     <div className="board">
       <Frame who="HAB-7" tag="spectator — everything at once" timeLeft={view.timeLeft}>
+        {s.busThreat ? <div className="busalert">{s.busThreat}</div> : null}
         <div className="strip">
           <div className="readout">
             <div className="label">air</div>
