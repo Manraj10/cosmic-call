@@ -1,128 +1,84 @@
-import type { BreakerId, PhraseId, PingId, RoleId, StationId } from './types.ts'
+import type { CrewId, RoleId, SignalId, StationId } from './types.ts'
 
-export const MISSION_SECONDS = 120
+export const MISSION_SECONDS = 90
+export const SIGNAL_COOLDOWN_MS = 4000
+export const BRACE_WINDOW_SECONDS = 5
 
-export const ROLE_META: Record<
-  RoleId,
-  {
-    title: string
-    station: string
-    constraint: string
-    honor: string
-    blurb: string
-    accent: string
-  }
+export const VEGA_META = {
+  callsign: 'VEGA',
+  title: 'Vega',
+  seat: 'In the air plant',
+  constraint: 'Cannot hear anything',
+  honor: 'Silence your phone. Earplugs are better. You get light and vibration only.',
+  blurb:
+    'You are the only one who can touch the ship. You are also the only one who can see how much air is left. You will not hear the alarm, the ship, or three people screaming your name.',
+  accent: '#3ee0ff',
+} as const
+
+export const CREW_META: Record<
+  CrewId,
+  { callsign: string; title: string; sees: string; blurb: string; accent: string }
 > = {
-  oxygen: {
-    title: 'Oxygen',
-    station: 'O2 / Pressure',
-    constraint: 'Deaf — zero audio',
-    honor: 'Put the phone on silent. You get lights and vibration only.',
+  engineer: {
+    callsign: 'ROOK',
+    title: 'Rook',
+    sees: 'Reactor power',
     blurb:
-      'You can see the needle. You cannot hear the siren, the astronaut, or anyone begging you to shut the pump. If it is not flashing on your glass, it did not happen.',
-    accent: '#3ee0ff',
-  },
-  power: {
-    title: 'Power',
-    station: 'Main bus',
-    constraint: 'Blind — no readouts',
-    honor: 'Do not hunt for numbers. There are none. Play by ear and by switch position.',
-    blurb:
-      'The 14% is never printed. The ship speaks it — or a teammate shouts it. Breakers are a spatial grid. Learn the layout, then stop looking.',
+      'You are the only one who knows how much power is left. Vega cannot run the pump and the shields on what you are looking at.',
     accent: '#ffb020',
   },
-  nav: {
-    title: 'Navigation',
-    station: 'Storm watch',
-    constraint: 'Mute — pings only',
-    honor: 'Do not speak. Do not type. The palette is your whole mouth.',
+  pilot: {
+    callsign: 'IDRIS',
+    title: 'Idris',
+    sees: 'Dust storm clock',
     blurb:
-      'You see the dust front and the leak lights. You cannot say "storm incoming, brace." You ping it, or the hab takes the hit cold.',
+      'You are the only one who can see the storm coming. Nobody else knows how long they have.',
     accent: '#ff6a22',
   },
-  comms: {
-    title: 'Communications',
-    station: 'Radio / AAC',
-    constraint: 'Limited output',
-    honor: 'You may only say phrases you actually transmit. The cooldown is the device.',
+  sparks: {
+    callsign: 'CHEN',
+    title: 'Chen',
+    sees: 'Alarm log',
     blurb:
-      'You are the radio. The teleprinter sees every alert. Your board has sixteen phrases and a hard cooldown — same bandwidth as an AAC device.',
+      'You are the only one who knows what just broke. The log tells you which valve, which system, right now.',
     accent: '#5cff9d',
   },
 }
 
-export const STATION_META: Record<
-  StationId,
-  { title: string; constraint: string }
-> = {
-  ...ROLE_META,
-  board: {
-    title: 'Table display',
-    constraint: 'Public bus — no secrets',
-  },
+export const ROLE_TITLE: Record<RoleId, string> = {
+  vega: VEGA_META.title,
+  engineer: CREW_META.engineer.title,
+  pilot: CREW_META.pilot.title,
+  sparks: CREW_META.sparks.title,
 }
 
-export const BREAKER_LAYOUT: {
-  id: BreakerId
-  spoken: string
-  row: number
-  col: number
-  shape: 'square' | 'round' | 'notch'
+export const STATION_META: Record<StationId, { title: string; constraint: string }> = {
+  vega: { title: 'Vega — the hands', constraint: 'Deaf. Every control.' },
+  engineer: { title: 'Rook — power', constraint: 'Sees the reactor' },
+  pilot: { title: 'Idris — storm', constraint: 'Sees the clock' },
+  sparks: { title: 'Chen — alarms', constraint: 'Sees what broke' },
+  board: { title: 'Hab monitor', constraint: 'Spectator / camera view' },
+}
+
+/** The only way anything reaches Vega. One pad, shared by all three crew. */
+export const SIGNALS: {
+  id: SignalId
+  label: string
+  mark: string
+  hint: string
 }[] = [
-  { id: 'main', spoken: 'Main bus', row: 0, col: 0, shape: 'square' },
-  { id: 'o2', spoken: 'Oxygen pumps', row: 0, col: 1, shape: 'round' },
-  { id: 'scrubber', spoken: 'Scrubber', row: 0, col: 2, shape: 'notch' },
-  { id: 'shields', spoken: 'Shields', row: 0, col: 3, shape: 'square' },
-  { id: 'nav', spoken: 'Navigation', row: 1, col: 0, shape: 'round' },
-  { id: 'comms', spoken: 'Communications', row: 1, col: 1, shape: 'notch' },
-  { id: 'fans', spoken: 'Life fans', row: 1, col: 2, shape: 'round' },
+  { id: 'pump-off', label: 'PUMP OFF', mark: '⏻', hint: 'Kill the air pump' },
+  { id: 'pump-on', label: 'PUMP ON', mark: '⏼', hint: 'Start the air pump' },
+  { id: 'seal-port', label: 'SEAL PORT', mark: '◀', hint: 'Close the port valve' },
+  { id: 'seal-starboard', label: 'SEAL STBD', mark: '▶', hint: 'Close the starboard valve' },
+  { id: 'shields-on', label: 'SHIELDS', mark: '⛨', hint: 'Raise the dust shields' },
+  { id: 'brace', label: 'BRACE', mark: '▣', hint: 'Hold on, impact' },
 ]
 
-export const BREAKER_SCRIPT =
-  'Breaker layout. Top row, left to right: Main bus, Oxygen pumps, Scrubber, Shields. Bottom row: Navigation, Communications, Fans. The last slot is empty. Say scan to hear which are on.'
-
-export const PINGS: { id: PingId; label: string; mark: string }[] = [
-  { id: 'storm', label: 'STORM', mark: '◎' },
-  { id: 'brace', label: 'BRACE', mark: '▣' },
-  { id: 'stop', label: 'STOP', mark: '⊘' },
-  { id: 'now', label: 'NOW', mark: '►' },
-  { id: 'wait', label: 'WAIT', mark: '◌' },
-  { id: 'o2', label: 'O2', mark: 'O₂' },
-  { id: 'pwr', label: 'PWR', mark: '⚡' },
-  { id: 'left', label: 'PORT', mark: '◀' },
-  { id: 'right', label: 'STBD', mark: '▶' },
-  { id: 'query', label: 'QUERY', mark: '?' },
-  { id: 'yes', label: 'YES', mark: '✓' },
-  { id: 'no', label: 'NO', mark: '×' },
-]
-
-export const PHRASES: { id: PhraseId; label: string; cat: string }[] = [
-  { id: 'status', label: 'STATUS?', cat: 'radio' },
-  { id: 'copy', label: 'COPY', cat: 'radio' },
-  { id: 'negative', label: 'NEGATIVE', cat: 'radio' },
-  { id: 'say-again', label: 'SAY AGAIN', cat: 'radio' },
-  { id: 'o2-low', label: 'OXYGEN LOW', cat: 'o2' },
-  { id: 'o2-off', label: 'TURN OFF OXYGEN', cat: 'o2' },
-  { id: 'seal-port', label: 'SEAL PORT VALVE', cat: 'o2' },
-  { id: 'seal-star', label: 'SEAL STARBOARD VALVE', cat: 'o2' },
-  { id: 'pump-on', label: 'PUMP ON', cat: 'o2' },
-  { id: 'need-power', label: 'NEED POWER', cat: 'pwr' },
-  { id: 'shields', label: 'POWER TO SHIELDS', cat: 'pwr' },
-  { id: 'breaker', label: 'BREAKER TRIPPED', cat: 'pwr' },
-  { id: 'reset-grid', label: 'RESET THE GRID', cat: 'pwr' },
-  { id: 'storm', label: 'STORM INCOMING', cat: 'nav' },
-  { id: 'brace', label: 'BRACE', cat: 'nav' },
-  { id: 'co2', label: 'CO2 SPIKE', cat: 'life' },
-]
-
-export const PHRASE_COOLDOWN_MS = 5200
-export const GLITCH_COOLDOWN_MS = 12000
-export const PING_COOLDOWN_MS = 1100
-
-export function pingLabel(id: PingId): string {
-  return PINGS.find((p) => p.id === id)?.label ?? id
+export function signalLabel(id: SignalId): string {
+  return SIGNALS.find((s) => s.id === id)?.label ?? id
 }
 
-export function phraseLabel(id: PhraseId): string {
-  return PHRASES.find((p) => p.id === id)?.label ?? id
+export function signalMark(id: SignalId): string {
+  return SIGNALS.find((s) => s.id === id)?.mark ?? '?'
 }

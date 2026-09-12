@@ -1,5 +1,3 @@
-/** TRACK B — Friend. Restyle this. Do not change the create/join calls. */
-
 import { useState } from 'react'
 import type { ClientView } from '@shared/types'
 import { createHab, joinHab } from '../net'
@@ -18,66 +16,76 @@ export function Home(props: {
     props.onReady()
     setBusy(true)
     try {
-      const res =
-        kind === 'create'
-          ? await createHab(name)
-          : await joinHab(code, name)
+      const res = kind === 'create' ? await createHab(name) : await joinHab(code, name)
       props.onView(res.view)
     } catch (err) {
-      props.onError(err instanceof Error ? err.message : 'Failed')
+      props.onError(err instanceof Error ? err.message : 'Could not reach the hab')
     } finally {
       setBusy(false)
     }
   }
 
   return (
-    <div className="shell">
-      <p className="track-tag">Track B · lobby glass</p>
-      <p className="kicker">HAB-7 · four stations</p>
-      <h1>CROSSTALK</h1>
-      <p>
-        Same table, four phones. Each station is missing a sense or a mouth.
-        Shout across the table — unless your role says you cannot.
-      </p>
-      <div className="panel">
-        <label className="kicker" htmlFor="callsign">
-          Callsign
-        </label>
-        <input
-          id="callsign"
-          placeholder="e.g. Xiao"
-          value={name}
-          maxLength={16}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <div className="row" style={{ marginTop: 10 }}>
-          <button className="btn" disabled={busy} onClick={() => void go('create')}>
-            Open a hab
-          </button>
-        </div>
+    <div
+      className="app"
+      style={{
+        backgroundImage:
+          'linear-gradient(rgba(13,9,6,0.62), rgba(13,9,6,0.94)), url(/art/hero-hab.webp)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      <div className="hero">
+        <div className="tag">four astronauts · one dust storm · 90 seconds</div>
+        <h1>CROSSTALK</h1>
+        <p className="pitch">
+          Three of you can see what is going wrong. <em>One of you has the only hands on the ship
+          — and she cannot hear a word you say.</em>
+        </p>
       </div>
-      <div className="panel">
-        <label className="kicker" htmlFor="code">
-          Join with code
-        </label>
-        <input
-          id="code"
-          placeholder="ABCD"
-          value={code}
-          maxLength={4}
-          onChange={(e) => setCode(e.target.value.toUpperCase())}
-        />
-        <div className="row" style={{ marginTop: 10 }}>
-          <button className="btn" disabled={busy || code.length < 4} onClick={() => void go('join')}>
-            Enter hab
-          </button>
+
+      <div className="card">
+        <div className="field">
+          <label htmlFor="name">your name</label>
+          <input
+            id="name"
+            placeholder="Xiao"
+            value={name}
+            maxLength={16}
+            onChange={(e) => setName(e.target.value)}
+          />
         </div>
+        <button className="btn primary" disabled={busy} onClick={() => void go('create')}>
+          open a hab
+        </button>
       </div>
-      {props.error ? <p className="banner">{props.error}</p> : null}
-      <p className="kicker">
-        Two laptops: one person opens a hab, the other joins the code — or both
-        open the host URL on the same Wi‑Fi. See COLLAB.md.
-      </p>
+
+      <div className="card">
+        <div className="field">
+          <label htmlFor="code">join your crew</label>
+          <input
+            id="code"
+            placeholder="ABCD"
+            value={code}
+            maxLength={4}
+            autoCapitalize="characters"
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+          />
+        </div>
+        <button
+          className="btn"
+          disabled={busy || code.length < 4}
+          onClick={() => void go('join')}
+        >
+          climb aboard
+        </button>
+      </div>
+
+      {props.error ? <div className="notice">{props.error}</div> : null}
+
+      <div className="tag" style={{ textAlign: 'center', lineHeight: 1.7 }}>
+        everyone in the same room · phones off silent except Vega
+      </div>
     </div>
   )
 }

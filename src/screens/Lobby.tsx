@@ -1,9 +1,14 @@
-/** TRACK B — Friend. Restyle the station picker. Keep claim/ready/start wiring. */
-
-import { ROLE_META, STATION_META } from '@shared/content'
-import { ROLE_IDS } from '@shared/types'
+import { CREW_META, STATION_META, VEGA_META } from '@shared/content'
+import { CREW_IDS } from '@shared/types'
 import type { ClientView, StationId } from '@shared/types'
 import { claim, setReady, startGame } from '../net'
+
+const ART: Record<string, string> = {
+  vega: '/art/crew-vega.webp',
+  engineer: '/art/crew-rook.webp',
+  pilot: '/art/crew-idris.webp',
+  sparks: '/art/crew-chen.webp',
+}
 
 export function Lobby(props: {
   view: ClientView
@@ -11,83 +16,125 @@ export function Lobby(props: {
   onError: (msg: string) => void
 }) {
   const { view } = props
-  const taken = new Set(view.players.map((p) => p.role))
-  const honor =
-    view.you.role && view.you.role !== 'board'
-      ? ROLE_META[view.you.role].honor
-      : view.you.role === 'board'
-        ? 'Watch the public bus. Do not leak numbers to Power.'
-        : 'Claim a station.'
+  const taken = new Set(view.players.filter((p) => p.connected).map((p) => p.role))
+  const mine = view.you.role
 
   async function pick(role: StationId | null) {
     try {
       await claim(role)
     } catch (err) {
-      props.onError(err instanceof Error ? err.message : 'claim failed')
+      props.onError(err instanceof Error ? err.message : 'seat taken')
     }
   }
 
   return (
-    <div className="shell">
-      <p className="track-tag">Track B · lobby glass</p>
-      <p className="kicker">Hab code</p>
-      <h1>{view.code}</h1>
-      <p>Hand this code to the other laptop / phones.</p>
-      <div className="panel">
+    <div className="app">
+      <div className="topbar">
+        <div>
+          <div className="tag">hab code — read it out loud</div>
+          <div className="who">CROSSTALK</div>
+        </div>
+      </div>
+      <div className="code">{view.code}</div>
+
+      <div className="roster">
         {view.players.map((p) => (
-          <div key={p.id}>
-            {p.name} — {p.role ?? 'unassigned'} {p.ready ? '· READY' : ''}{' '}
-            {p.host ? '· LEAD' : ''} {!p.connected ? '· dropped' : ''}
+          <div className="row" key={p.id}>
+            <span>
+              <b>{p.name}</b>
+              {p.host ? ' · lead' : ''}
+              {!p.connected ? ' · dropped' : ''}
+            </span>
+            <span>
+              {p.role ? STATION_META[p.role].title : 'no seat'}
+              {p.ready ? ' ✓' : ''}
+            </span>
           </div>
         ))}
       </div>
-      <div className="grid2">
-        {ROLE_IDS.map((id) => {
-          const meta = ROLE_META[id]
-          const mine = view.you.role === id
-          const blocked = taken.has(id) && !mine
+
+      <div className="seats">
+        <button
+          className={`seat vega${mine === 'vega' ? ' mine' : ''}${taken.has('vega') && mine !== 'vega' ? ' taken' : ''}`}
+          disabled={taken.has('vega') && mine !== 'vega'}
+          onClick={() => void pick(mine === 'vega' ? null : 'vega')}
+        >
+          <img className="badge" src={ART.vega} alt="" style={{ objectFit: 'cover' }} />
+          <span className="name">{VEGA_META.callsign} — the hands</span>
+          <span className="desc">
+            Deaf. Every control on the ship. The only one who can see the air.
+          </span>
+        </button>
+
+        {CREW_IDS.map((id) => {
+          const meta = CREW_META[id]
+          const isMine = mine === id
+          const blocked = taken.has(id) && !isMine
           return (
             <button
               key={id}
-              className={`btn ${mine ? 'on' : ''}`}
+              className={`seat ${id}${isMine ? ' mine' : ''}${blocked ? ' taken' : ''}`}
               disabled={blocked}
-              onClick={() => void pick(mine ? null : id)}
+              onClick={() => void pick(isMine ? null : id)}
             >
-              <strong>{meta.title}</strong>
-              <div className="kicker">{meta.constraint}</div>
+              <img className="badge" src={ART[id]} alt="" style={{ objectFit: 'cover' }} />
+              <span className="name">
+                {meta.callsign} — {meta.sees.toLowerCase()}
+              </span>
+              <span className="desc">{meta.blurb}</span>
             </button>
           )
         })}
-      </div>
-      <button
-        className="btn"
-        style={{ marginTop: 10, width: '100%' }}
-        onClick={() => void pick(view.you.role === 'board' ? null : 'board')}
-      >
-        {STATION_META.board.title} ({STATION_META.board.constraint})
-      </button>
-      <p style={{ marginTop: 12 }}>{honor}</p>
-      {view.you.role ? (
-        <button className={`btn ${view.you.ready ? 'on' : ''}`} onClick={() => void setReady(!view.you.ready)}>
-          {view.you.ready ? 'Ready' : 'Mark ready'}
+
+        <button
+          className={`seat board${mine === 'board' ? ' mine' : ''}`}
+          onClick={() => void pick(mine === 'board' ? null : 'board')}
+        >
+          <span className="badge">▦</span>
+          <span className="name">hab monitor</span>
+          <span className="desc">Spectator screen for the table. Good for filming.</span>
         </button>
+      </div>
+
+      {mine === 'vega' ? (
+        <div className="brief">
+          {VEGA_META.blurb}
+          <div className="honor">{VEGA_META.honor}</div>
+        </div>
+      ) : mine && mine !== 'board' ? (
+        <div className="brief">
+          You can talk all you like. Vega cannot hear any of it. The signal pad is the only thing
+          that reaches her, and all three of you share one cooldown.
+        </div>
       ) : null}
+
+      {mine ? (
+        <button
+          className={`btn ${view.you.ready ? 'ghost' : 'primary'}`}
+          onClick={() => void setReady(!view.you.ready)}
+        >
+          {view.you.ready ? 'ready — tap to undo' : 'i am ready'}
+        </button>
+      ) : (
+        <div className="tag" style={{ textAlign: 'center' }}>take a seat</div>
+      )}
+
       {view.you.host ? (
         <button
-          className="btn"
-          style={{ width: '100%', marginTop: 8 }}
+          className="btn primary"
           onClick={() =>
             void startGame().catch((e: unknown) =>
-              props.onError(e instanceof Error ? e.message : 'start failed'),
+              props.onError(e instanceof Error ? e.message : 'could not launch'),
             )
           }
         >
-          Start mission
+          launch the round
         </button>
       ) : (
-        <p className="kicker">Waiting on hab lead to start.</p>
+        <div className="tag" style={{ textAlign: 'center' }}>waiting on the hab lead</div>
       )}
-      {props.error ? <p className="banner">{props.error}</p> : null}
+
+      {props.error ? <div className="notice">{props.error}</div> : null}
     </div>
   )
 }

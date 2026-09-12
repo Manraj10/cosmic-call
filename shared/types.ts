@@ -1,57 +1,25 @@
-export const ROLE_IDS = ['oxygen', 'power', 'nav', 'comms'] as const
+export const ROLE_IDS = ['vega', 'engineer', 'pilot', 'sparks'] as const
 export type RoleId = (typeof ROLE_IDS)[number]
 export type StationId = RoleId | 'board'
 
-export const BREAKERS = [
-  'main',
-  'o2',
-  'scrubber',
-  'shields',
-  'nav',
-  'comms',
-  'fans',
-] as const
-export type BreakerId = (typeof BREAKERS)[number]
+/** The three crew who can hear, talk, and see one readout each. */
+export const CREW_IDS = ['engineer', 'pilot', 'sparks'] as const
+export type CrewId = (typeof CREW_IDS)[number]
 
 export const VALVES = ['port', 'starboard'] as const
 export type ValveId = (typeof VALVES)[number]
 
-export type Phase = 'lobby' | 'play' | 'end'
-export type HullBand = 'ok' | 'warn' | 'crit'
-export type PowerHint = 'dead' | 'strain' | 'hum' | 'surge'
-export type Outcome = 'won' | 'lost'
-
-export type PingId =
-  | 'storm'
-  | 'brace'
-  | 'stop'
-  | 'now'
-  | 'wait'
-  | 'o2'
-  | 'pwr'
-  | 'left'
-  | 'right'
-  | 'query'
-  | 'yes'
-  | 'no'
-
-export type PhraseId =
-  | 'status'
-  | 'copy'
-  | 'negative'
-  | 'say-again'
-  | 'o2-low'
-  | 'o2-off'
-  | 'seal-port'
-  | 'seal-star'
+export type SignalId =
+  | 'pump-off'
   | 'pump-on'
-  | 'need-power'
-  | 'shields'
-  | 'breaker'
-  | 'reset-grid'
-  | 'storm'
+  | 'seal-port'
+  | 'seal-starboard'
+  | 'shields-on'
   | 'brace'
-  | 'co2'
+
+export type Phase = 'lobby' | 'play' | 'end'
+export type Outcome = 'won' | 'lost'
+export type AirBand = 'ok' | 'low' | 'critical' | 'over'
 
 export interface LobbyPlayer {
   id: string
@@ -62,16 +30,13 @@ export interface LobbyPlayer {
   host: boolean
 }
 
-export interface PingEvent {
+export interface SignalEvent {
   id: string
-  ping: PingId
+  signal: SignalId
+  from: CrewId | null
   at: number
-}
-
-export interface RadioEvent {
-  id: string
-  phrase: PhraseId
-  at: number
+  /** Vega has not cleared it yet. */
+  fresh: boolean
 }
 
 export interface ClientView {
@@ -86,36 +51,50 @@ export interface ClientView {
   }
   players: LobbyPlayer[]
   timeLeft: number | null
-  hullBand: HullBand
-  hull: number | null
-  pings: PingEvent[]
-  radio: RadioEvent[]
-  oxygen: number | null
+
+  /** Vega only: the one number that matters. */
+  air: number | null
+  airBand: AirBand | null
+  /** Vega only: her own panel. */
   valves: Record<ValveId, 'open' | 'sealed'> | null
+  leakLights: Record<ValveId, boolean> | null
   pumpOn: boolean | null
-  mix: number | null
-  alarm: boolean
-  breakers: Record<BreakerId, boolean> | null
-  powerHint: PowerHint | null
+  shieldsOn: boolean | null
+  braced: boolean
+  braceWindow: boolean
+  /** Vega only: signals pushed to her glass. */
+  signals: SignalEvent[]
+
+  /** Engineer only. */
+  power: number | null
+  /** Pilot only. */
   stormEta: number | null
   stormActive: boolean
-  heading: number | null
-  targetHeading: number | null
-  shieldsUp: boolean | null
-  cooldownMs: number | null
-  glitch: boolean
-  disabledPhrases: PhraseId[]
-  printer: string[]
+  /** Sparks only. */
+  alarms: string[]
+
+  /** Shared by the three crew: one signal pad, one cooldown. */
+  signalCooldownMs: number | null
+  lastSignal: SignalId | null
+
   outcome: Outcome | null
   loseReason: string | null
-  braced: boolean
+  /** Spectator board only. */
+  spectator: {
+    air: number
+    power: number
+    stormEta: number | null
+    pumpOn: boolean
+    shieldsOn: boolean
+    valves: Record<ValveId, 'open' | 'sealed'>
+    alarms: string[]
+  } | null
 }
 
 export type ClientAction =
   | { type: 'valve'; valve: ValveId; sealed: boolean }
   | { type: 'pump'; on: boolean }
-  | { type: 'mix'; value: number }
-  | { type: 'breaker'; breaker: BreakerId; on: boolean }
-  | { type: 'heading'; deg: number }
-  | { type: 'ping'; ping: PingId }
-  | { type: 'phrase'; phrase: PhraseId }
+  | { type: 'shields'; on: boolean }
+  | { type: 'brace' }
+  | { type: 'clear-signals' }
+  | { type: 'signal'; signal: SignalId }

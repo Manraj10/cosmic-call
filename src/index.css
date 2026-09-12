@@ -1,153 +1,664 @@
-@import 'tailwindcss';
-
-/* TRACK B owns look-and-feel. This is a temporary wireframe so both
-   laptops can play tonight. Friend: replace freely. Xiao: avoid this file. */
-
 :root {
-  --bg: #140c08;
-  --ink: #f3e6d4;
-  --dim: #9a8168;
-  --line: #3a281c;
-  --o2: #3ee0ff;
-  --pwr: #ffb020;
-  --nav: #ff6a22;
-  --com: #5cff9d;
-  --warn: #ff3b1f;
-  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  --bg: #0d0906;
+  --panel: #17100b;
+  --panel-2: #1f1610;
+  --line: #3a2a1c;
+  --ink: #f6ead8;
+  --dim: #9b8168;
+  --air: #3ee0ff;
+  --power: #ffb020;
+  --storm: #ff6a22;
+  --alarm: #5cff9d;
+  --danger: #ff3b1f;
+  --ok: #6de08a;
+
+  color-scheme: dark;
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--ink);
   background: var(--bg);
+  -webkit-text-size-adjust: 100%;
 }
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
 }
 
 html,
-body,
-#root {
+body {
   margin: 0;
-  min-height: 100svh;
-  width: 100%;
+  min-height: 100%;
+  background: var(--bg);
 }
 
-button,
-input,
-select {
+#root {
+  min-height: 100svh;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+input {
   font: inherit;
   color: inherit;
 }
 
-button {
-  cursor: pointer;
-}
+/* ---------- layout ---------- */
 
-.shell {
+.app {
   min-height: 100svh;
-  max-width: 480px;
+  max-width: 560px;
   margin: 0 auto;
-  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
-}
-
-.panel {
-  border: 1px solid var(--line);
-  background: #1b110c;
-  padding: 14px;
-  margin: 10px 0;
-}
-
-.row {
+  padding: 12px 14px calc(18px + env(safe-area-inset-bottom));
   display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 8px;
+}
+
+.who {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.tag {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.clock {
+  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.clock.urgent {
+  color: var(--danger);
+}
+
+.grow {
+  flex: 1;
+}
+
+/* ---------- big readouts ---------- */
+
+.readout {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 4px;
+  padding: 18px 16px 20px;
+  text-align: center;
+}
+
+.readout .label {
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.readout .value {
+  font-size: clamp(64px, 26vw, 132px);
+  line-height: 0.9;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  margin: 6px 0 2px;
+}
+
+.readout .unit {
+  font-size: 0.36em;
+  vertical-align: super;
+  opacity: 0.75;
+}
+
+.readout .sub {
+  font-size: 13px;
+  color: var(--dim);
+}
+
+.v-air {
+  color: var(--air);
+}
+.v-power {
+  color: var(--power);
+}
+.v-storm {
+  color: var(--storm);
+}
+.v-danger {
+  color: var(--danger);
+}
+.v-ok {
+  color: var(--ok);
+}
+
+.bar {
+  height: 12px;
+  background: #100b08;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+.bar > i {
+  display: block;
+  height: 100%;
+  transition: width 0.12s linear;
+}
+
+/* Overpressure marker so Vega learns that high is not good. */
+.airtrack {
+  position: relative;
+}
+
+.airtrack .redzone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 8%;
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 59, 31, 0.55) 0 4px,
+    transparent 4px 8px
+  );
+  pointer-events: none;
+}
+
+/* ---------- controls ---------- */
+
+.controls {
+  display: grid;
+  gap: 10px;
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.ctl {
+  border: 2px solid var(--line);
+  background: var(--panel-2);
+  border-radius: 4px;
+  padding: 14px 12px;
+  min-height: 76px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  text-align: center;
+  transition: transform 0.06s ease;
+}
+
+.ctl:active {
+  transform: scale(0.97);
+}
+
+.ctl .name {
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.ctl .state {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.ctl.on {
+  border-color: var(--ok);
+  background: #14210f;
+}
+.ctl.on .state {
+  color: var(--ok);
+}
+
+.ctl.off {
+  border-color: #5a4126;
+}
+.ctl.off .state {
+  color: var(--dim);
+}
+
+.ctl.hot {
+  border-color: var(--danger);
+  background: #240d09;
+}
+.ctl.hot .state {
+  color: var(--danger);
+}
+
+.ctl.brace {
+  min-height: 88px;
+  border-color: var(--storm);
+}
+
+.ctl.brace .state {
+  color: var(--storm);
+  font-size: 26px;
+}
+
+.ctl.brace.armed {
+  animation: pulse 0.7s ease-in-out infinite;
+}
+
+.ctl.brace.held {
+  border-color: var(--ok);
+  background: #14210f;
+}
+
+.ctl:disabled {
+  opacity: 0.45;
+}
+
+/* ---------- signal pad (the only line into Vega) ---------- */
+
+.pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
-  flex-wrap: wrap;
+}
+
+.sig {
+  border: 2px solid var(--line);
+  background: var(--panel-2);
+  border-radius: 4px;
+  padding: 12px 6px;
+  min-height: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.sig .mark {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.sig .name {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+}
+
+.sig:active {
+  transform: scale(0.96);
+}
+
+.sig:disabled {
+  opacity: 0.32;
+}
+
+.cooldown {
+  height: 6px;
+  background: #100b08;
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.cooldown > i {
+  display: block;
+  height: 100%;
+  background: var(--danger);
+  transition: width 0.1s linear;
+}
+
+/* ---------- incoming signal on Vega's glass ---------- */
+
+.incoming {
+  border: 3px solid var(--air);
+  background: #08222b;
+  border-radius: 4px;
+  padding: 18px 14px;
+  text-align: center;
+  animation: flashbox 0.5s steps(2, end) infinite;
+}
+
+.incoming .mark {
+  font-size: 54px;
+  line-height: 1;
+}
+
+.incoming .what {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+
+.incoming .ack {
+  margin-top: 12px;
+  border: 2px solid var(--air);
+  padding: 12px;
+  width: 100%;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--air);
+}
+
+@keyframes flashbox {
+  50% {
+    background: #0e3c4a;
+    border-color: #bff4ff;
+  }
+}
+
+@keyframes pulse {
+  50% {
+    background: #3a1a0c;
+  }
+}
+
+.silent-note {
+  border: 1px dashed var(--line);
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--dim);
+  text-align: center;
+  letter-spacing: 0.08em;
+}
+
+/* ---------- logs ---------- */
+
+.log {
+  border: 1px solid var(--line);
+  background: #0a0705;
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.log div {
+  color: var(--alarm);
+}
+
+.log div.old {
+  opacity: 0.4;
+}
+
+.log div.fresh {
+  color: #fff;
+  font-weight: 700;
+}
+
+/* ---------- lobby / home ---------- */
+
+.hero {
+  text-align: center;
+  padding: 8px 0 0;
+}
+
+.hero h1 {
+  font-size: clamp(34px, 12vw, 54px);
+  letter-spacing: -0.02em;
+  margin: 4px 0 6px;
+  font-weight: 800;
+}
+
+.hero .pitch {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--ink);
+  margin: 0 auto 4px;
+  max-width: 32ch;
+}
+
+.hero .pitch em {
+  color: var(--air);
+  font-style: normal;
+  font-weight: 700;
+}
+
+.card {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  border-radius: 4px;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.field label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-bottom: 6px;
+}
+
+.field input {
+  width: 100%;
+  background: #0a0705;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 14px;
+  letter-spacing: 0.1em;
+}
+
+.field input:focus {
+  outline: 2px solid var(--air);
+  outline-offset: -1px;
 }
 
 .btn {
-  background: #2a1b14;
-  border: 1px solid #6a4a32;
-  padding: 12px 14px;
-  min-height: 48px;
-  flex: 1;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  padding: 15px 14px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-size: 13px;
+  width: 100%;
+}
+
+.btn.primary {
+  background: var(--ink);
+  color: #12100c;
+}
+
+.btn.ghost {
+  border-color: var(--line);
+  color: var(--dim);
 }
 
 .btn:disabled {
   opacity: 0.4;
 }
 
-.btn.on {
-  background: #3a2a12;
-  border-color: var(--pwr);
+.code {
+  font-size: clamp(44px, 18vw, 76px);
+  font-weight: 800;
+  letter-spacing: 0.24em;
+  text-align: center;
+  color: var(--air);
 }
 
-.btn.alert {
-  border-color: var(--warn);
-  color: #ffd0c8;
+.seats {
+  display: grid;
+  gap: 8px;
 }
 
-.kicker {
+.seat {
+  border: 2px solid var(--line);
+  background: var(--panel-2);
+  border-radius: 4px;
+  padding: 12px 14px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  align-items: center;
+  text-align: left;
+}
+
+.seat .badge {
+  grid-row: span 2;
+  width: 44px;
+  height: 44px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.seat .name {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.seat .desc {
+  font-size: 12px;
   color: var(--dim);
-  letter-spacing: 0.16em;
-  font-size: 11px;
-  text-transform: uppercase;
+  line-height: 1.4;
 }
 
-h1,
-h2,
-p {
-  margin: 0 0 8px;
+.seat.mine {
+  border-color: var(--ink);
+  background: #241a12;
 }
 
-input {
-  background: #0e0907;
-  border: 1px solid var(--line);
-  padding: 12px;
-  width: 100%;
+.seat.taken {
+  opacity: 0.42;
 }
 
+.seat.vega {
+  color: var(--air);
+}
+.seat.engineer {
+  color: var(--power);
+}
+.seat.pilot {
+  color: var(--storm);
+}
+.seat.sparks {
+  color: var(--alarm);
+}
+.seat.board {
+  color: var(--dim);
+}
+
+.roster {
+  font-size: 13px;
+  display: grid;
+  gap: 4px;
+}
+
+.roster .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--dim);
+}
+
+.roster .row b {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.notice {
+  border: 1px solid var(--danger);
+  background: #2a0f0a;
+  border-radius: 3px;
+  padding: 10px 12px;
+  font-size: 13px;
+  text-align: center;
+}
+
+.brief {
+  border-left: 3px solid var(--air);
+  padding: 8px 0 8px 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.brief .honor {
+  color: var(--danger);
+  font-weight: 700;
+  margin-top: 6px;
+}
+
+/* ---------- debrief ---------- */
+
+.verdict {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.verdict .head {
+  font-size: clamp(30px, 11vw, 46px);
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.verdict .why {
+  color: var(--dim);
+  margin-top: 10px;
+  font-size: 15px;
+}
+
+/* ---------- spectator board ---------- */
+
+.board {
+  max-width: 1100px;
+}
+
+.board .strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.board .readout .value {
+  font-size: clamp(40px, 8vw, 84px);
+}
+
+@media (min-width: 900px) {
+  .board .log {
+    min-height: 260px;
+    font-size: 15px;
+  }
+}
+
+/* Vega's whole screen reacts, because sound cannot reach her. */
 .strobe {
-  animation: strobe 0.32s steps(2, end) infinite;
+  animation: strobe 0.34s steps(2, end) infinite;
 }
 
 @keyframes strobe {
   50% {
-    background: #5a140c;
+    background: #3a0f08;
   }
-}
-
-.grid2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.grid3 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-}
-
-.printer {
-  min-height: 120px;
-  background: #0a0806;
-  color: var(--com);
-  padding: 10px;
-  font-size: 12px;
-  white-space: pre-wrap;
-}
-
-.banner {
-  position: sticky;
-  top: 0;
-  background: #2a120c;
-  border: 1px solid var(--warn);
-  padding: 10px;
-  margin-bottom: 10px;
-  text-align: center;
-}
-
-.track-tag {
-  font-size: 10px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--dim);
-  margin-bottom: 6px;
 }

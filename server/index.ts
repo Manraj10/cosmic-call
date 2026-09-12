@@ -14,10 +14,7 @@ app.use(cors())
 app.use(express.json())
 
 const httpServer = createServer(app)
-const io = new Server(httpServer, {
-  cors: { origin: true },
-  path: '/socket.io',
-})
+const io = new Server(httpServer, { cors: { origin: true }, path: '/socket.io' })
 
 const habs = new Map<string, Hab>()
 
@@ -39,17 +36,60 @@ function bind(hab: Hab) {
     },
     onSpeak: (packet: SpeakPacket) => {
       for (const p of hab.players.values()) {
-        if (!p.socketId) continue
-        if (packet.to === 'power' && p.role === 'power') {
-          io.to(p.socketId).emit('speak', packet)
-        }
-        if (packet.to === 'hearing' && p.role && p.role !== 'oxygen') {
-          io.to(p.socketId).emit('speak', packet)
-        }
+        // Vega never receives audio. That is the whole game.
+        if (!p.socketId || p.role === 'vega' || !p.role) continue
+        io.to(p.socketId).emit('speak', packet)
       }
     },
   }
 }
+
+/**
+ * Server-side voice proxy. The xAI key stays on the host machine and is never
+ * shipped to a phone. Without a key, clients fall back to browser speech.
+ */
+app.post('/api/voice', async (req, res) => {
+  const key = process.env.XAI_API_KEY
+  if (!key) {
+    res.status(501).json({ error: 'no-key' })
+    return
+  }
+  const text = String((req.body as { text?: string })?.text ?? '').slice(0, 400)
+  if (!text) {
+    res.status(400).json({ error: 'no-text' })
+    return
+  }
+  try {
+    const upstream = await fetch(
+      process.env.XAI_TTS_URL || 'https://api.x.ai/v1/audio/speech',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model: process.env.XAI_TTS_MODEL || 'grok-voice',
+          voice: process.env.XAI_TTS_VOICE || 'ember',
+          input: text,
+        }),
+      },
+    )
+    if (!upstream.ok) {
+      res.status(502).json({ error: 'upstream', status: upstream.status })
+      return
+    }
+    const buf = Buffer.from(await upstream.arrayBuffer())
+    res.setHeader('Content-Type', upstream.headers.get('content-type') || 'audio/mpeg')
+    res.send(buf)
+  } catch {
+    res.status(502).json({ error: 'unreachable' })
+  }
+})
+
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, habs: habs.size, voice: process.env.XAI_API_KEY ? 'grok' : 'browser' })
+})
 
 io.on('connection', (socket) => {
   socket.on(
@@ -71,7 +111,6 @@ io.on('connection', (socket) => {
       bind(hab)
       habs.set(code, hab)
       socket.data.playerId = playerId
-      socket.data.code = code
       socket.join(code)
       cb?.({ ok: true, playerId, view: hab.viewFor(playerId) })
     },
@@ -89,19 +128,17 @@ io.on('connection', (socket) => {
         cb?.({ ok: false, error: 'No hab with that code' })
         return
       }
-      const name = sanitizeName(payload?.name)
       const playerId = payload?.playerId || crypto.randomUUID()
-      const existing = hab.players.get(playerId)
-      if (existing) {
+      if (hab.players.has(playerId)) {
         hab.setSocket(playerId, socket.id, true)
       } else {
         if (hab.phase !== 'lobby') {
-          cb?.({ ok: false, error: 'Mission already underway' })
+          cb?.({ ok: false, error: 'That round already started' })
           return
         }
         hab.addPlayer({
           id: playerId,
-          name,
+          name: sanitizeName(payload?.name),
           role: null,
           ready: false,
           connected: true,
@@ -110,7 +147,6 @@ io.on('connection', (socket) => {
         })
       }
       socket.data.playerId = playerId
-      socket.data.code = code
       socket.join(code)
       cb?.({ ok: true, playerId, view: hab.viewFor(playerId) })
     },
@@ -142,12 +178,6 @@ io.on('connection', (socket) => {
     if (!hab) return cb?.({ ok: false, error: 'No hab' })
     const err = hab.applyAction(socket.data.playerId, action)
     cb?.(err ? { ok: false, error: err } : { ok: true })
-  })
-
-  socket.on('scan', () => {
-    const hab = habByPlayer(socket.data.playerId)
-    const p = hab?.players.get(socket.data.playerId)
-    if (hab && p?.role === 'power') hab.scanPower()
   })
 
   socket.on('disconnect', () => {

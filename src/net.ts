@@ -1,15 +1,17 @@
 import { io, type Socket } from 'socket.io-client'
 import type { ClientAction, ClientView, StationId } from '@shared/types'
 
-const extra = import.meta.env.VITE_SOCKET_URL as string | undefined
+const override = import.meta.env.VITE_SOCKET_URL
 
 let socket: Socket | null = null
 
 export function getSocket(): Socket {
   if (!socket) {
-    socket = extra
-      ? io(extra, { path: '/socket.io', transports: ['websocket', 'polling'] })
-      : io({ path: '/socket.io', transports: ['websocket', 'polling'] })
+    const opts = {
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+    }
+    socket = override ? io(override, opts) : io(opts)
   }
   return socket
 }
@@ -23,10 +25,7 @@ export function playerKey(): string {
 }
 
 export function createHab(name: string) {
-  return ack<{ playerId: string; view: ClientView }>('create', {
-    name,
-    playerId: playerKey(),
-  })
+  return ack<{ playerId: string; view: ClientView }>('create', { name, playerId: playerKey() })
 }
 
 export function joinHab(code: string, name: string) {
@@ -51,10 +50,6 @@ export function startGame() {
 
 export function sendAction(action: ClientAction) {
   return ack('action', action)
-}
-
-export function scanPower() {
-  getSocket().emit('scan')
 }
 
 function ack<T = { ok: boolean }>(event: string, ...args: unknown[]): Promise<T> {
