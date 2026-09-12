@@ -31,7 +31,7 @@ export function unlockAudio() {
   void fetch('/api/health')
     .then((r) => (r.ok ? r.json() : null))
     .then((h: { voice?: string } | null) => {
-      if (h) grokAvailable = h.voice === 'grok'
+      if (h) grokAvailable = h.voice !== 'browser'
     })
     .catch(() => {
       /* leave it undecided and let the first line find out */

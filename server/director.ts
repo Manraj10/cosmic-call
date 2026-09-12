@@ -12,18 +12,18 @@
  * one thing worse than no radio line is a demo that waits for one.
  */
 
-type Provider = { name: string; run: (prompt: string) => Promise<string | null> }
+type Provider = { name: string; budgetMs?: number; run: (prompt: string) => Promise<string | null> }
 
 /** Nothing on this path is allowed to hold the round up. */
 const BUDGET_MS = 2500
 
-async function withTimeout<T>(p: Promise<T>): Promise<T | null> {
+async function withTimeout<T>(p: Promise<T>, ms = BUDGET_MS): Promise<T | null> {
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
       p,
       new Promise<null>((res) => {
-        timer = setTimeout(() => res(null), BUDGET_MS)
+        timer = setTimeout(() => res(null), ms)
       }),
     ])
   } catch {
@@ -45,9 +45,12 @@ function openAiish(
   url: string | undefined,
   key: string | undefined,
   model: string,
+  extra: Record<string, unknown> = {},
+  budgetMs?: number,
 ): Provider {
   return {
     name,
+    budgetMs,
     run: async (prompt) => {
       if (!key || !url) return null
       const r = await fetch(url, {
@@ -56,6 +59,7 @@ function openAiish(
         body: JSON.stringify({
           model,
           max_tokens: 90,
+          ...extra,
           messages: [
             { role: 'system', content: SYSTEM },
             { role: 'user', content: prompt },
@@ -64,18 +68,20 @@ function openAiish(
       })
       if (!r.ok) return null
       const j = (await r.json()) as { choices?: { message?: { content?: string } }[] }
-      return firstLine(j.choices?.[0]?.message?.content)
+      // Reasoning models sometimes leave their thinking inline; only what follows it is the line.
+      const raw = j.choices?.[0]?.message?.content ?? ''
+      return firstLine(raw.includes('</think>') ? raw.split('</think>').pop() : raw)
     },
   }
 }
 
 function gemini(): Provider {
   return {
-    name: 'gemini',
+    name: 'Gemini',
     run: async (prompt) => {
       const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
       if (!key) return null
-      const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash'
+      const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite'
       const r = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {
@@ -106,16 +112,19 @@ const SYSTEM = [
 
 function providers(): Provider[] {
   return [
-    // IFM's K2 models, OpenAI-compatible.
+    // IFM's K2 Horizon, OpenAI-compatible (docs.ifm.ai). It is a reasoning model, so
+    // effort goes low and the token cap goes up, or the reasoning eats the whole reply.
     openAiish(
-      'ifm-k2',
-      process.env.IFM_BASE_URL || 'https://api.lfm.ifm.org/v1/chat/completions',
+      'K2 Horizon',
+      `${process.env.IFM_BASE_URL || 'https://api.ifm.ai/v1'}/chat/completions`,
       process.env.IFM_API_KEY,
-      process.env.IFM_MODEL || 'k2-chat',
+      process.env.IFM_MODEL || 'IFM/K2-Horizon-375B-A23B',
+      { max_tokens: 600, reasoning_effort: 'low', temperature: 0.7 },
+      9000,
     ),
     gemini(),
     openAiish(
-      'grok',
+      'Grok',
       'https://api.x.ai/v1/chat/completions',
       process.env.XAI_API_KEY || process.env.GROK_API_KEY,
       process.env.XAI_MODEL || 'grok-3-mini',
@@ -157,11 +166,19 @@ export async function debriefLine(f: DebriefFacts): Promise<{ text: string; by: 
     .join(' ')
 
   for (const p of providers()) {
-    const out = await withTimeout(p.run(prompt))
-    if (out) return { text: out, by: p.name }
+    const out = await withTimeout(p.run(prompt), p.budgetMs)
+    if (out) {
+      last = p.name
+      return { text: out, by: p.name }
+    }
   }
+  last = 'hab'
   return { text: written(f), by: 'hab' }
 }
+
+let last = 'none'
+/** Who actually wrote the most recent debrief line, for /api/health. */
+export const lastDirector = () => last
 
 /** With no keys set this is what everyone hears, and it is not a downgrade. */
 function written(f: DebriefFacts): string {

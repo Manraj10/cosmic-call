@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { Server } from 'socket.io'
 import { hearsSpeech } from '../shared/types.ts'
 import type { ClientAction, StationId } from '../shared/types.ts'
-import { debriefLine } from './director.ts'
+import { debriefLine, lastDirector } from './director.ts'
 import { Hab, makeCode } from './game.ts'
 import type { SpeakPacket } from './game.ts'
 
@@ -14,6 +14,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const app = express()
 app.use(cors())
 app.use(express.json())
+
+// One bad promise anywhere must not end every round on the ship.
+process.on('unhandledRejection', (e) => console.error('unhandled rejection', e))
 
 const httpServer = createServer(app)
 const io = new Server(httpServer, { cors: { origin: true }, path: '/socket.io' })
@@ -90,6 +93,7 @@ async function elevenLabs(text: string): Promise<Response | null> {
     const r = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'xi-api-key': key },
+      signal: AbortSignal.timeout(4000),
       body: JSON.stringify({
         text,
         model_id: process.env.ELEVENLABS_MODEL || 'eleven_flash_v2_5',
@@ -109,6 +113,7 @@ async function grokVoice(text: string): Promise<Response | null> {
     const r = await fetch(process.env.XAI_TTS_URL || 'https://api.x.ai/v1/audio/speech', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(4000),
       body: JSON.stringify({
         model: process.env.XAI_TTS_MODEL || 'grok-voice',
         voice: process.env.XAI_TTS_VOICE || 'ember',
@@ -129,7 +134,9 @@ app.post('/api/voice', async (req, res) => {
   }
   const upstream = (await elevenLabs(text)) ?? (await grokVoice(text))
   if (!upstream) {
-    res.status(501).json({ error: 'no-voice' })
+    // 501 tells a phone to stop asking; a keyed upstream that hiccuped is a 502 and gets retried next line.
+    const keyed = process.env.ELEVENLABS_API_KEY || process.env.XAI_API_KEY
+    res.status(keyed ? 502 : 501).json({ error: 'no-voice' })
     return
   }
   const buf = Buffer.from(await upstream.arrayBuffer())
@@ -160,12 +167,14 @@ app.get('/api/health', (_req, res) => {
         ? 'grok'
         : 'browser',
     director: process.env.IFM_API_KEY
-      ? 'ifm-k2'
+      ? 'K2 Horizon'
       : process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY
-        ? 'gemini'
+        ? 'Gemini'
         : process.env.XAI_API_KEY || process.env.GROK_API_KEY
-          ? 'grok'
+          ? 'Grok'
           : 'hab',
+    // Which model actually wrote the last debrief line, not just which key exists.
+    directorLast: lastDirector(),
   })
 })
 
@@ -258,15 +267,26 @@ io.on('connection', (socket) => {
   socket.on('action', async (action: ClientAction, cb?: (res: unknown) => void) => {
     const hab = habForSocket(socket)
     if (!hab) return cb?.({ ok: false, error: 'No hab' })
-    // Verifying a signature is async, so an order is acknowledged only once the
-    // seal has actually been checked. A phone that gets `ok` was believed.
-    const err = await hab.applyAction(socket.data.playerId, action)
-    cb?.(err ? { ok: false, error: err } : { ok: true })
+    // Any browser on the link can send anything; a malformed action must not take the ship down.
+    if (!action || typeof action !== 'object' || typeof action.type !== 'string') {
+      return cb?.({ ok: false, error: 'Bad action' })
+    }
+    try {
+      // Verifying a signature is async, so an order is acknowledged only once the
+      // seal has actually been checked. A phone that gets `ok` was believed.
+      const err = await hab.applyAction(socket.data.playerId, action)
+      cb?.(err ? { ok: false, error: err } : { ok: true })
+    } catch (e) {
+      console.error('action failed', e)
+      cb?.({ ok: false, error: 'Bad action' })
+    }
   })
 
   socket.on('disconnect', () => {
     const hab = habForSocket(socket)
     if (!hab) return
+    // A phone that already reconnected on a new socket must not be marked gone by its old one timing out.
+    if (hab.players.get(socket.data.playerId)?.socketId !== socket.id) return
     hab.setSocket(socket.data.playerId, null, false)
     setTimeout(() => {
       if (hab.removeIfEmpty()) {
