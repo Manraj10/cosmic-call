@@ -9,6 +9,7 @@ import {
   SCORE_START,
   SUIT_COLORS,
   TICK_MS,
+  makeRoomCode,
   type ItemType,
   type RoomId,
   type SystemId,
@@ -42,12 +43,8 @@ import {
   type WorldItem,
 } from "./simulation";
 
-const PREFIXES = ["MARS", "ARES", "DUST", "SOL", "HAB", "EVA", "ION", "NOVA"];
-
 export function makeCode() {
-  const p = PREFIXES[Math.floor(Math.random() * PREFIXES.length)]!;
-  const n = String(Math.floor(10 + Math.random() * 90));
-  return `${p}${n}`;
+  return makeRoomCode();
 }
 
 export function newId() {

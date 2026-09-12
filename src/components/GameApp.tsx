@@ -7,7 +7,7 @@ import { Countdown, RoleIntro, Tutorial } from "@/components/RoleIntro";
 import { habitatAudio } from "@/lib/audio";
 import { getSocket } from "@/lib/socket";
 import { haptic } from "@/lib/utils";
-import type { RoomId } from "@/shared/constants";
+import { makeRoomCode, type RoomId } from "@/shared/constants";
 import type { ClientState } from "@/shared/protocol";
 import { useEffect, useRef, useState } from "react";
 
@@ -20,6 +20,7 @@ export function GameApp() {
   const [, setTick] = useState(0);
   const audioOn = useRef(false);
   const bound = useRef(false);
+  const pendingName = useRef("Astronaut");
 
   useEffect(() => {
     const id = setInterval(() => setTick((n) => n + 1), 250);
@@ -49,6 +50,11 @@ export function GameApp() {
       const text = String(m);
       setError(text);
       if (/unknown mission/i.test(text)) sessionStorage.removeItem(KEY);
+      if (/already exists/i.test(text)) {
+        const code = makeRoomCode();
+        s.connect(code);
+        s.emit("create", { name: pendingName.current });
+      }
     });
     s.on("toast", (t) => {
       const body = t as { text: string };
@@ -89,15 +95,11 @@ export function GameApp() {
     getSocket().emit(ev, body);
   };
 
-  const create = async (name: string) => {
+  const create = (name: string) => {
     habitatAudio.click();
     setError(null);
-    const res = await fetch("/api/create", { method: "POST" });
-    if (!res.ok) {
-      setError("Could not open a mission.");
-      return;
-    }
-    const { code } = (await res.json()) as { code: string };
+    pendingName.current = name;
+    const code = makeRoomCode();
     const s = getSocket();
     s.connect(code);
     s.emit("create", { name });

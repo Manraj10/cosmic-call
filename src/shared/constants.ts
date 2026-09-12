@@ -94,3 +94,11 @@ export const SYSTEM_LABELS: Record<SystemId, string> = {
 export const SUIT_COLORS = ["#35e0c2", "#ffb020", "#ff6a3d", "#7aa8ff"] as const;
 
 export const AVATAR_COUNT = 4;
+
+export const ROOM_CODE_PREFIXES = ["MARS", "ARES", "DUST", "SOL", "HAB", "EVA", "ION", "NOVA"] as const;
+
+export function makeRoomCode() {
+  const p = ROOM_CODE_PREFIXES[Math.floor(Math.random() * ROOM_CODE_PREFIXES.length)]!;
+  const n = String(Math.floor(10 + Math.random() * 90));
+  return `${p}${n}`;
+}

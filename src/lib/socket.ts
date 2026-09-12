@@ -5,6 +5,7 @@ class GameSocket {
   handlers = new Map<string, Set<Handler>>();
   queue: { event: string; data?: unknown }[] = [];
   room: string | null = null;
+  didOpen = false;
 
   on(event: string, fn: Handler) {
     const set = this.handlers.get(event) || new Set();
@@ -22,6 +23,7 @@ class GameSocket {
 
   connect(room: string) {
     this.disconnect();
+    this.didOpen = false;
     this.room = room.toUpperCase();
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(`${proto}//${window.location.host}/ws?room=${encodeURIComponent(this.room)}`);
@@ -35,12 +37,21 @@ class GameSocket {
       }
     };
     ws.onopen = () => {
+      this.didOpen = true;
       const pending = this.queue;
       this.queue = [];
       for (const m of pending) this.emit(m.event, m.data);
       this.fire("open", null);
     };
-    ws.onclose = () => this.fire("close", null);
+    ws.onerror = () => {
+      /* onclose reports the failure */
+    };
+    ws.onclose = () => {
+      if (!this.didOpen) {
+        this.fire("error_msg", "Habitat radio link failed. Try CREATE again.");
+      }
+      this.fire("close", null);
+    };
   }
 
   emit(event: string, data?: unknown) {
