@@ -11,6 +11,7 @@ export interface WorldItem {
 
 export interface AstronautSim {
   id: string;
+  name: string;
   health: number;
   suitOxygen: number;
   radiation: number;
@@ -280,7 +281,7 @@ export function tickSim(sim: Sim, crew: AstronautSim[], dtMs: number) {
     if (a.health <= 0) {
       a.incapacitated = true;
       a.health = 0;
-      note(sim, `${a.id} incapacitated`);
+      note(sim, `${a.name} incapacitated`);
     }
   }
 

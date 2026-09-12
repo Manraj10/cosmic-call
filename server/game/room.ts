@@ -106,6 +106,7 @@ export function makeHost(name: string, socketId: string): Player {
     connected: true,
     astro: {
       id,
+      name: (name || "Astronaut").trim().slice(0, 18) || "Astronaut",
       health: 100,
       suitOxygen: 100,
       radiation: 0,
@@ -194,6 +195,7 @@ export class GameRoom {
       connected: true,
       astro: {
         id,
+        name: name.slice(0, 18),
         health: 100,
         suitOxygen: 100,
         radiation: 0,
@@ -716,6 +718,7 @@ export class GameRoom {
       p.roleId = null;
       p.astro = {
         ...p.astro,
+        name: p.name,
         health: 100,
         suitOxygen: 100,
         radiation: 0,
