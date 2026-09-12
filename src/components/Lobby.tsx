@@ -85,6 +85,18 @@ export function Landing({
               <Button size="lg" variant="ghost" className="w-full" onClick={() => setMode("join")}>
                 JOIN MISSION
               </Button>
+              <a
+                href="/dont-kill-the-astronaut.zip"
+                className="inline-flex h-12 w-full items-center justify-center rounded-md border border-amber-400/40 bg-amber-400/10 text-sm font-semibold tracking-wide text-amber-100 hover:bg-amber-400/20"
+              >
+                DOWNLOAD PROJECT ZIP
+              </a>
+              <p className="text-center text-[11px] text-white/45">
+                Source only — unzip, then <span className="text-amber-200">git push</span> to your GitHub repo.{" "}
+                <a href="/get" className="underline decoration-amber-400/50 underline-offset-2">
+                  Full upload steps
+                </a>
+              </p>
             </div>
           ) : (
             <div className="grid gap-3">

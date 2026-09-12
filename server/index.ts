@@ -10,6 +10,7 @@ import {
   type RoomSlot,
 } from "./game/net";
 import { makeCode } from "./game/room";
+import { sendDownloadPage, sendProjectBundle, sendProjectZip } from "./pack";
 
 const dev = process.env.NODE_ENV !== "production";
 const port = Number(process.env.PORT || 43221);
@@ -44,6 +45,18 @@ async function handleReq(
   const path = parsed.pathname || "/";
   if (path === "/api/create" && req.method === "POST") {
     json(res, { code: makeCode() });
+    return;
+  }
+  if (path === "/get" || path === "/download") {
+    sendDownloadPage(res);
+    return;
+  }
+  if (path === "/dont-kill-the-astronaut.zip") {
+    sendProjectZip(res);
+    return;
+  }
+  if (path === "/dont-kill-the-astronaut.bundle") {
+    sendProjectBundle(res);
     return;
   }
   const sync = matchSync(path);

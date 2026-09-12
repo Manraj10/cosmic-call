@@ -8,7 +8,9 @@ Talk out loud. **Tap modules to walk.** Carry the one item you can hold. Solve e
 
 This folder is the full project. It does **not** include `node_modules` — run `npm install` after you clone or unzip.
 
-If you downloaded **`dont-kill-the-astronaut.zip`**, unzip it, then push to your empty repo (this project was aimed at [`shainag03/oberon.mp`](https://github.com/shainag03/oberon.mp)):
+With the game running locally, open **[http://127.0.0.1:43221/get](http://127.0.0.1:43221/get)** and hit **DOWNLOAD ZIP**. Direct file: [http://127.0.0.1:43221/dont-kill-the-astronaut.zip](http://127.0.0.1:43221/dont-kill-the-astronaut.zip).
+
+If you already have the zip, unzip it, then push to your empty repo (this project was aimed at [`shainag03/oberon.mp`](https://github.com/shainag03/oberon.mp)):
 
 ```bash
 unzip dont-kill-the-astronaut.zip
