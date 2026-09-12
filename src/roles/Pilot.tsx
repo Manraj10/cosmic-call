@@ -28,7 +28,7 @@ export function Pilot({ view }: { view: ClientView }) {
         </div>
       </div>
       <div className="grow" />
-      <SignalPad view={view} />
+      <SignalPad view={view} crew="pilot" />
     </Frame>
   )
 }

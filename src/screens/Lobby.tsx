@@ -1,4 +1,4 @@
-import { CREW_META, STATION_META, VEGA_META } from '@shared/content'
+import { CREW_JOB, CREW_META, STATION_META, VEGA_META } from '@shared/content'
 import { CREW_IDS } from '@shared/types'
 import type { ClientView, StationId } from '@shared/types'
 import { claim, setReady, startGame } from '../net'
@@ -105,6 +105,7 @@ export function Lobby(props: {
         <div className="brief">
           You can talk all you like. Vega cannot hear any of it. The signal pad is the only thing
           that reaches her, and all three of you share one cooldown.
+          <div className="honor">{CREW_JOB[mine]}</div>
         </div>
       ) : null}
 

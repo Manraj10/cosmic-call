@@ -1,8 +1,17 @@
 import type { CrewId, RoleId, SignalId, StationId } from './types.ts'
 
+export const CREW_JOB: Record<CrewId, string> = {
+  engineer: 'The pump is yours. Kill it to buy her shields, start it to buy her air.',
+  pilot: 'The storm is yours. Shields up early, brace on the beat.',
+  sparks: 'The leak is yours. Nobody else can see which valve is bleeding.',
+}
+
 export const MISSION_SECONDS = 90
 export const SIGNAL_COOLDOWN_MS = 4000
-export const BRACE_WINDOW_SECONDS = 5
+/** How close to impact Vega has to be holding on. Tight on purpose. */
+export const BRACE_WINDOW_SECONDS = 3
+/** How long the front sits on top of the hab once it lands. */
+export const STORM_DURATION_SECONDS = 18
 
 export const VEGA_META = {
   callsign: 'VEGA',
@@ -60,20 +69,74 @@ export const STATION_META: Record<StationId, { title: string; constraint: string
   board: { title: 'Hab monitor', constraint: 'Spectator / camera view' },
 }
 
-/** The only way anything reaches Vega. One pad, shared by all three crew. */
+/**
+ * The only way anything reaches Vega — and each signal is welded to one crew
+ * member's console. Chen is the only person alive who can tell her which valve
+ * to seal; Rook is the only one who can touch the pump; Idris is the only one
+ * who can call the storm. Lose any one of them and there is no way to win.
+ */
 export const SIGNALS: {
   id: SignalId
   label: string
   mark: string
   hint: string
+  owner: CrewId
 }[] = [
-  { id: 'pump-off', label: 'PUMP OFF', mark: '⏻', hint: 'Kill the air pump' },
-  { id: 'pump-on', label: 'PUMP ON', mark: '⏼', hint: 'Start the air pump' },
-  { id: 'seal-port', label: 'SEAL PORT', mark: '◀', hint: 'Close the port valve' },
-  { id: 'seal-starboard', label: 'SEAL STBD', mark: '▶', hint: 'Close the starboard valve' },
-  { id: 'shields-on', label: 'SHIELDS', mark: '⛨', hint: 'Raise the dust shields' },
-  { id: 'brace', label: 'BRACE', mark: '▣', hint: 'Hold on, impact' },
+  {
+    id: 'seal-port',
+    label: 'SEAL PORT',
+    mark: '◀',
+    hint: 'Only you can see which valve is bleeding',
+    owner: 'sparks',
+  },
+  {
+    id: 'seal-starboard',
+    label: 'SEAL STBD',
+    mark: '▶',
+    hint: 'Only you can see which valve is bleeding',
+    owner: 'sparks',
+  },
+  {
+    id: 'pump-off',
+    label: 'PUMP OFF',
+    mark: '⏻',
+    hint: 'Frees the power her shields need',
+    owner: 'engineer',
+  },
+  {
+    id: 'pump-on',
+    label: 'PUMP ON',
+    mark: '⏼',
+    hint: 'Without this the air just decays',
+    owner: 'engineer',
+  },
+  {
+    id: 'shields-on',
+    label: 'SHIELDS',
+    mark: '⛨',
+    hint: 'Up before the front lands',
+    owner: 'pilot',
+  },
+  {
+    id: 'brace',
+    label: 'BRACE',
+    mark: '▣',
+    hint: 'Only you know when impact is',
+    owner: 'pilot',
+  },
 ]
+
+export const SIGNAL_OWNER: Record<SignalId, CrewId> = SIGNALS.reduce(
+  (acc, s) => {
+    acc[s.id] = s.owner
+    return acc
+  },
+  {} as Record<SignalId, CrewId>,
+)
+
+export function signalsFor(crew: CrewId) {
+  return SIGNALS.filter((s) => s.owner === crew)
+}
 
 export function signalLabel(id: SignalId): string {
   return SIGNALS.find((s) => s.id === id)?.label ?? id

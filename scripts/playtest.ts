@@ -2,14 +2,18 @@
  * Drives the sim without sockets or a browser, so balance can be checked fast.
  *   npx tsx scripts/playtest.ts
  *
- * The point of these policies is that Vega only ever acts on what her glass
- * shows her: the air number, and whatever signal the crew managed to push.
- * She never reads which valve is leaking, because she cannot.
+ * Two things this has to prove:
+ *   1. A crew that runs the correct sequence survives.
+ *   2. Drop ANY ONE of the three and the round is unwinnable, because each
+ *      signal is welded to one console.
+ *
+ * Vega only ever acts on what her glass shows: the air number, and whatever
+ * signal arrived. She never reads which valve is leaking, because she cannot.
  */
-import { MISSION_SECONDS } from '../shared/content.ts'
+import { MISSION_SECONDS, SIGNAL_OWNER } from '../shared/content.ts'
 import { VALVES } from '../shared/types.ts'
 import { Hab } from '../server/game.ts'
-import type { ClientAction, SignalId, StationId } from '../shared/types.ts'
+import type { ClientAction, CrewId, SignalId, StationId } from '../shared/types.ts'
 
 type Internals = {
   tick: (dt: number) => void
@@ -20,30 +24,9 @@ type Internals = {
   pumpOn: boolean
   shieldsOn: boolean
   stormEta: number | null
+  stormActive: boolean
   runawayUntil: number
   elapsed: number
-  alarms: string[]
-}
-
-function seat(
-  hab: Hab,
-  id: string,
-  role: StationId,
-  host: boolean,
-) {
-  if (!host) {
-    hab.addPlayer({
-      id,
-      name: role,
-      role: null,
-      ready: false,
-      connected: true,
-      host: false,
-      socketId: `sock-${id}`,
-    })
-  }
-  hab.claim(id, role)
-  hab.setReady(id, true)
 }
 
 function makeHab(seed: number) {
@@ -60,10 +43,21 @@ function makeHab(seed: number) {
     },
     seed,
   )
-  seat(hab, 'vega', 'vega', true)
-  seat(hab, 'engineer', 'engineer', false)
-  seat(hab, 'pilot', 'pilot', false)
-  seat(hab, 'sparks', 'sparks', false)
+  hab.claim('vega', 'vega')
+  hab.setReady('vega', true)
+  for (const role of ['engineer', 'pilot', 'sparks'] as StationId[]) {
+    hab.addPlayer({
+      id: role,
+      name: role,
+      role: null,
+      ready: false,
+      connected: true,
+      host: false,
+      socketId: `sock-${role}`,
+    })
+    hab.claim(role, role)
+    hab.setReady(role, true)
+  }
   hab.listener = { onView: () => {}, onSpeak: () => {} }
   const err = hab.start('vega')
   if (err) throw new Error(`start failed: ${err}`)
@@ -71,26 +65,40 @@ function makeHab(seed: number) {
   return { hab, inner: hab as unknown as Internals }
 }
 
+/** What the crew collectively want Vega to do, in priority order. */
+function desired(inner: Internals): SignalId | null {
+  const leaking = VALVES.filter((v) => inner.leaks[v] && inner.valves[v] !== 'sealed')
+  const runaway = inner.elapsed < inner.runawayUntil
+  const eta = inner.stormEta
+
+  if (runaway && inner.pumpOn) return 'pump-off'
+  if (eta != null && !inner.stormActive && eta <= 2.5) return 'brace'
+  if (eta != null && !inner.stormActive && eta <= 13 && !inner.shieldsOn) return 'shields-on'
+  // Shields have to be held through the front, and that means no pump.
+  if (inner.stormActive && inner.pumpOn) return 'pump-off'
+  if (leaking.length) return leaking[0] === 'port' ? 'seal-port' : 'seal-starboard'
+  // Restarting the pump mid-runaway just re-floods the cabin.
+  if (!inner.stormActive && !runaway && !inner.pumpOn && inner.air < 72) return 'pump-on'
+  return null
+}
+
 interface Sim {
   label: string
-  /** Seconds a crew member takes to notice and press. 0 = instant robot. */
   lag: number
-  /** Whether the crew push signals at all. */
-  relays: boolean
-  /** Seconds Vega takes to obey a fresh signal. */
   vegaLag: number
+  /** Crew members who are absent or silent this run. */
+  missing: CrewId[]
 }
 
 function run(sim: Sim, seed: number) {
   const { hab, inner } = makeHab(seed)
   const act = (who: string, a: ClientAction) => hab.applyAction(who, a)
 
-  let noticedAt: number | null = null
   let intent: SignalId | null = null
-  let vegaSawAt: number | null = null
+  let noticedAt: number | null = null
   let vegaTodo: SignalId | null = null
+  let vegaSawAt: number | null = null
   let minAir = 999
-  let maxAir = -999
   const steps = Math.ceil((MISSION_SECONDS + 1) / 0.1)
 
   for (let i = 0; i < steps; i++) {
@@ -98,29 +106,19 @@ function run(sim: Sim, seed: number) {
     if (hab.phase !== 'play') break
     const t = inner.elapsed
 
-    // What the crew can see, and what they would want to send.
-    const leaking = VALVES.filter((v) => inner.leaks[v] && inner.valves[v] !== 'sealed')
-    const runaway = t < inner.runawayUntil
-    const eta = inner.stormEta
-    let want: SignalId | null = null
-    if (runaway && inner.pumpOn) want = 'pump-off'
-    else if (eta != null && eta > 0 && eta <= 4) want = 'brace'
-    else if (eta != null && eta > 4 && eta <= 14 && !inner.shieldsOn) want = 'shields-on'
-    else if (leaking.length) want = leaking[0] === 'port' ? 'seal-port' : 'seal-starboard'
-    else if (!inner.pumpOn && inner.air < 70) want = 'pump-on'
-
-    if (sim.relays) {
-      if (want && want !== intent) {
-        intent = want
-        noticedAt = t
-      }
-      if (intent && noticedAt != null && t - noticedAt >= sim.lag) {
-        const err = act('sparks', { type: 'signal', signal: intent })
+    const want = desired(inner)
+    if (want && want !== intent) {
+      intent = want
+      noticedAt = t
+    }
+    if (intent && noticedAt != null && t - noticedAt >= sim.lag) {
+      const owner = SIGNAL_OWNER[intent]
+      if (!sim.missing.includes(owner)) {
+        const err = act(owner, { type: 'signal', signal: intent })
         if (!err) intent = null
       }
     }
 
-    // Vega: acts on the freshest signal, plus the one number she can read.
     const view = hab.viewFor('vega')!
     const fresh = view.signals.filter((s) => s.fresh).at(-1)
     if (fresh && fresh.signal !== vegaTodo) {
@@ -153,7 +151,6 @@ function run(sim: Sim, seed: number) {
     }
 
     minAir = Math.min(minAir, inner.air)
-    maxAir = Math.max(maxAir, inner.air)
   }
 
   const view = hab.viewFor('vega')!
@@ -161,40 +158,65 @@ function run(sim: Sim, seed: number) {
     outcome: view.outcome,
     air: Math.round(inner.air),
     minAir: Math.round(minAir),
-    maxAir: Math.round(maxAir),
     reason: view.loseReason,
   }
 }
 
 const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8]
 
-const sims: Sim[] = [
-  { label: 'sharp crew (1.0s lag)', lag: 1.0, relays: true, vegaLag: 0.6 },
-  { label: 'normal crew (2.0s lag)', lag: 2.0, relays: true, vegaLag: 1.2 },
-  { label: 'slow crew (3.5s lag)', lag: 3.5, relays: true, vegaLag: 2.0 },
-  { label: 'nobody signals Vega', lag: 0, relays: false, vegaLag: 0 },
-]
-
-let failures = 0
-for (const sim of sims) {
+function report(sim: Sim) {
   const results = SEEDS.map((s) => run(sim, s))
   const won = results.filter((r) => r.outcome === 'won').length
-  const minAir = Math.min(...results.map((r) => r.minAir))
-  const maxAir = Math.max(...results.map((r) => r.maxAir))
+  const floor = Math.min(...results.map((r) => r.minAir))
   console.log(
-    `${sim.label.padEnd(24)} won ${won}/${SEEDS.length}` +
-      `  air floor ${String(minAir).padStart(3)}  ceiling ${String(maxAir).padStart(3)}`,
+    `${sim.label.padEnd(30)} won ${won}/${SEEDS.length}   air floor ${String(floor).padStart(3)}`,
   )
-  const reasons = new Set(results.filter((r) => r.reason).map((r) => r.reason!))
-  if (reasons.size) console.log(`${' '.repeat(26)}${[...reasons].join(' / ')}`)
-
-  if (sim.relays && sim.lag <= 2.0 && won < SEEDS.length) failures++
-  if (!sim.relays && won > 0) failures++
+  return won
 }
 
-console.log(
-  failures
-    ? '\nBALANCE NOT READY: talking should win, silence should lose'
-    : '\nbalance OK: relaying wins, silence kills',
-)
-process.exit(failures ? 1 : 0)
+console.log('=== the one path ===')
+const sharp = report({ label: 'all three, sharp (1.2s)', lag: 1.2, vegaLag: 0.7, missing: [] })
+const normal = report({ label: 'all three, normal (2.2s)', lag: 2.2, vegaLag: 1.3, missing: [] })
+const slow = report({ label: 'all three, slow (3.6s)', lag: 3.6, vegaLag: 2.2, missing: [] })
+
+console.log('\n=== every one of them is load-bearing ===')
+const noRook = report({
+  label: 'Rook silent (no pump calls)',
+  lag: 1.2,
+  vegaLag: 0.7,
+  missing: ['engineer'],
+})
+const noIdris = report({
+  label: 'Idris silent (no storm calls)',
+  lag: 1.2,
+  vegaLag: 0.7,
+  missing: ['pilot'],
+})
+const noChen = report({
+  label: 'Chen silent (no valve calls)',
+  lag: 1.2,
+  vegaLag: 0.7,
+  missing: ['sparks'],
+})
+const nobody = report({
+  label: 'nobody signals at all',
+  lag: 1.2,
+  vegaLag: 0.7,
+  missing: ['engineer', 'pilot', 'sparks'],
+})
+
+const problems: string[] = []
+if (sharp < SEEDS.length) problems.push('a sharp crew running the correct sequence must always win')
+if (normal < SEEDS.length - 1) problems.push('a normal crew should usually win')
+if (slow >= SEEDS.length) problems.push('a slow crew should sometimes lose — no slack allowed')
+if (noRook > 0) problems.push('Rook is not load-bearing')
+if (noIdris > 0) problems.push('Idris is not load-bearing')
+if (noChen > 0) problems.push('Chen is not load-bearing')
+if (nobody > 0) problems.push('silence must never win')
+
+if (problems.length) {
+  console.log('\nBALANCE NOT READY:')
+  for (const p of problems) console.log(`  - ${p}`)
+  process.exit(1)
+}
+console.log('\nbalance OK: one path, and all three of them are on it')

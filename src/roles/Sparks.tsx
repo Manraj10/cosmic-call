@@ -26,7 +26,7 @@ export function Sparks({ view }: { view: ClientView }) {
         </div>
       </div>
       <div className="grow" />
-      <SignalPad view={view} />
+      <SignalPad view={view} crew="sparks" />
     </Frame>
   )
 }

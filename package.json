@@ -9,6 +9,8 @@
     "dev:client": "vite",
     "build": "tsc -b && vite build",
     "start": "NODE_ENV=production tsx server/index.ts",
+    "typecheck": "tsc -b",
+    "playtest": "tsx scripts/playtest.ts",
     "lint": "oxlint"
   },
   "dependencies": {

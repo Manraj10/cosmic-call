@@ -2,6 +2,8 @@ import {
   BRACE_WINDOW_SECONDS,
   MISSION_SECONDS,
   SIGNAL_COOLDOWN_MS,
+  SIGNAL_OWNER,
+  STORM_DURATION_SECONDS,
   signalLabel,
 } from '../shared/content.ts'
 import { CREW_IDS, VALVES } from '../shared/types.ts'
@@ -97,8 +99,12 @@ export class Hab {
   private shieldsOn = false
   private runawayUntil = -1
   private seamBlown = false
+  private seams = 0
   private stormEta: number | null = null
   private stormActive = false
+  private stormEndsAt = Infinity
+  private scourWarned = false
+  private ingestWarned = false
   private impactAt = -1
   private bracedAt = -99
   private alarms: string[] = []
@@ -178,8 +184,10 @@ export class Hab {
     this.phase = 'play'
     this.elapsed = 0
     this.scriptI = 0
-    this.air = 58
-    this.power = 80
+    this.air = 48
+    this.power = 70
+    this.seams = 0
+    this.seamBlown = false
     this.alarms = ['HAB-7 IN THE DUST CORRIDOR', '90 SECONDS TO THE FAR SIDE']
     this.speak('Hab seven, ninety seconds of corridor. Vega is the only one who can touch anything.', 'astronaut')
     this.listener?.onView()
@@ -195,15 +203,14 @@ export class Hab {
   private buildScript(): ScriptEvent[] {
     const firstValve = pick(this.rng, VALVES)
     const secondValve: ValveId = firstValve === 'port' ? 'starboard' : 'port'
-    const stormWarnAt = 40 + Math.floor(this.rng() * 6)
-    const stormLead = 18 + Math.floor(this.rng() * 6)
+    const stormWarnAt = 38 + Math.floor(this.rng() * 5)
+    const stormLead = 15 + Math.floor(this.rng() * 5)
     return [
       { t: 8, kind: 'leak', valve: firstValve },
-      { t: 26, kind: 'runaway' },
+      { t: 24, kind: 'runaway' },
       { t: stormWarnAt, kind: 'storm', eta: stormLead },
       { t: stormWarnAt + stormLead, kind: 'impact' },
-      { t: 68, kind: 'leak', valve: secondValve },
-      { t: 78, kind: 'voice', line: 'Ten seconds. Hold what you have.' },
+      { t: 82, kind: 'leak', valve: secondValve },
     ].sort((a, b) => a.t - b.t) as ScriptEvent[]
   }
 
@@ -267,6 +274,9 @@ export class Hab {
       case 'impact': {
         this.stormActive = true
         this.stormEta = 0
+        this.stormEndsAt = this.elapsed + STORM_DURATION_SECONDS
+        this.scourWarned = false
+        this.ingestWarned = false
         this.alarm('IMPACT')
         let hit = 0
         if (!this.shieldsOn || this.power <= 2) {
@@ -304,23 +314,62 @@ export class Hab {
     // Valves are the intake as well as the leak, so sealing both starves the pump.
     const feed = VALVES.filter((v) => this.valves[v] === 'open').length / VALVES.length
     const pumpLive = this.pumpOn && this.power > 4 && feed > 0
+    // Intake barely outruns breathing, so nobody banks a surplus to coast on.
     if (pumpLive) {
-      air += 1.7 * feed * dt
-      if (this.elapsed < this.runawayUntil) air += 6 * feed * dt
+      air += 1.2 * feed * dt
+      // Strong enough to drive straight through the overpressure ceiling, so
+      // leaving it running is never quietly free air.
+      if (this.elapsed < this.runawayUntil) air += 8 * feed * dt
     }
+
+    if (this.stormActive) {
+      if (this.elapsed >= this.stormEndsAt) {
+        this.stormActive = false
+        this.stormEta = null
+        this.alarm('FRONT HAS PASSED')
+        this.speak('Front has passed. She needs the pump back on.', 'astronaut')
+      } else {
+        // An intake pump running inside a dust front feeds the cabin dust.
+        // Only Rook can call this off, and it is the whole reason he exists.
+        if (pumpLive) {
+          air -= 3.2 * dt
+          if (!this.ingestWarned) {
+            this.ingestWarned = true
+            this.alarm('PUMP IS INGESTING DUST')
+            this.speak('The pump is eating the storm. Get it shut down.', 'astronaut')
+          }
+        }
+        if (!this.shieldsOn || this.power <= 12) {
+          air -= 1.35 * dt
+          if (!this.scourWarned) {
+            this.scourWarned = true
+            this.alarm('SHIELDS FAILING — HULL SCOURED')
+          }
+        }
+      }
+    }
+
+    // A blown seam does not heal. Otherwise the runaway hands out more air than
+    // the burst costs, and ignoring Rook becomes profitable.
+    air -= this.seams * 0.9 * dt
 
     if (air >= 100 && !this.seamBlown) {
       this.seamBlown = true
-      air -= 45
-      this.alarm('OVERPRESSURE — SEAM BLEW')
-      this.speak('She blew a seam. That was the pump.', 'astronaut')
+      this.seams += 1
+      air -= 40
+      this.alarm(`OVERPRESSURE — SEAM ${this.seams} BLEW`)
+      this.speak('She blew a seam. That hull will never hold like it did.', 'astronaut')
     }
+    if (this.seamBlown && air < 88) this.seamBlown = false
     this.air = clamp(air, 0, 120)
 
+    // Power is Rook's whole world. Kept so the pump never starves itself into
+    // silence — if it browned out on its own it would quietly cancel both of
+    // the punishments it is supposed to cause.
     let draw = 0.1
-    if (this.pumpOn) draw += 0.35
-    if (this.shieldsOn) draw += this.stormActive ? 1.1 : 0.3
-    this.power = clamp(this.power + 1.0 * dt - draw * dt, 0, 100)
+    if (this.pumpOn) draw += this.elapsed < this.runawayUntil || this.stormActive ? 0.9 : 0.3
+    if (this.shieldsOn) draw += this.stormActive ? 2.2 : 0.3
+    this.power = clamp(this.power + 0.5 * dt - draw * dt, 0, 100)
 
     if (this.stormEta != null && !this.stormActive) {
       this.stormEta = Math.max(0, this.impactAt - this.elapsed)
@@ -362,6 +411,9 @@ export class Hab {
 
     if (action.type === 'signal') {
       if (role === 'vega') return 'You are the one being signalled'
+      // Welded to one console, so all three of them are load-bearing.
+      const owner = SIGNAL_OWNER[action.signal]
+      if (owner !== role) return 'Not your call to make'
       const remain = SIGNAL_COOLDOWN_MS - (this.elapsed - this.lastSignalAt) * 1000
       if (remain > 0) return 'Pad is still resetting'
       this.pushSignal(action.signal, role as CrewId)

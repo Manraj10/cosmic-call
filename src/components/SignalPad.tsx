@@ -1,12 +1,14 @@
-import { SIGNALS, SIGNAL_COOLDOWN_MS, signalLabel } from '@shared/content'
-import type { ClientView } from '@shared/types'
+import { SIGNAL_COOLDOWN_MS, signalLabel, signalsFor } from '@shared/content'
+import type { ClientView, CrewId } from '@shared/types'
 import { sendAction } from '../net'
 
 /**
- * The only channel into Vega. Shared by all three crew, so a wasted press is a
- * wasted press for everybody.
+ * The only channel into Vega. Each crew member's pad holds just the two calls
+ * their console owns — the server rejects anyone else's, so there is nothing to
+ * gain from showing them.
  */
-export function SignalPad({ view }: { view: ClientView }) {
+export function SignalPad({ view, crew }: { view: ClientView; crew: CrewId }) {
+  const mine = signalsFor(crew)
   const cd = view.signalCooldownMs ?? 0
   const locked = cd > 0
   const pct = Math.min(100, (cd / SIGNAL_COOLDOWN_MS) * 100)
@@ -18,13 +20,13 @@ export function SignalPad({ view }: { view: ClientView }) {
       <div className="tag" style={{ textAlign: 'center' }}>
         {locked
           ? `pad resetting — ${(cd / 1000).toFixed(1)}s`
-          : 'one signal reaches her glass'}
+          : 'only you can send these two'}
       </div>
       <div className="cooldown">
         <i style={{ width: `${pct}%` }} />
       </div>
-      <div className="pad">
-        {SIGNALS.map((s) => (
+      <div className="pad owned">
+        {mine.map((s) => (
           <button
             key={s.id}
             className="sig"
@@ -33,6 +35,7 @@ export function SignalPad({ view }: { view: ClientView }) {
           >
             <span className="mark">{s.mark}</span>
             <span className="name">{s.label}</span>
+            <span className="why">{s.hint}</span>
           </button>
         ))}
       </div>

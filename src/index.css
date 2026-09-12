@@ -305,6 +305,33 @@ input {
   font-weight: 700;
 }
 
+/* Two calls per console instead of six, so they get the room. */
+.pad.owned {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.pad.owned .sig {
+  min-height: 118px;
+  padding: 14px 10px;
+}
+
+.pad.owned .sig .mark {
+  font-size: 34px;
+}
+
+.pad.owned .sig .name {
+  font-size: 12px;
+}
+
+.sig .why {
+  font-size: 9px;
+  line-height: 1.35;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--dim);
+  text-align: center;
+}
+
 .sig:active {
   transform: scale(0.96);
 }
