@@ -71,22 +71,25 @@ export interface ClientView {
   leakLights: Record<ValveId, boolean> | null
   pumpOn: boolean | null
   shieldsOn: boolean | null
-  braced: boolean
+  braced: boolean | null
   /** Vega only: signals pushed to her glass. */
   signals: SignalEvent[]
 
   /** Engineer only. */
   power: number | null
+  /** Engineer only: how hard the reactor is working, not why. */
+  draw: number | null
   /** Pilot only. */
   stormEta: number | null
-  stormActive: boolean
+  stormActive: boolean | null
   /** Sparks only. */
   alarms: string[]
 
   /** Shared by the three crew: one signal pad, one cooldown. */
   signalCooldownMs: number | null
+  /** The call this player sent last — not anyone else's. */
   lastSignal: SignalId | null
-  /** Crew only: how long ago Vega confirmed she saw a signal. Her one bit back. */
+  /** Only the sender sees her ack. Everyone else has to ask. */
   ackAgeMs: number | null
 
   outcome: Outcome | null

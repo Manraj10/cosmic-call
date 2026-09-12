@@ -22,11 +22,11 @@ Get three phones on camera. **Never show four consoles at once** — it reads as
 
 Show **Vega's screen** and **Rook's screen** side by side, and narrate one emergency:
 
-1. "The pump jams. The ship says out loud: *turn off the oxygen.*" — let the voice line play.
-2. "Everyone at this table heard that. She didn't."
-3. Point at Vega's screen: air climbing past 90, needle in the red hatching. "She thinks this is good news. More air."
+1. The plant gets loud. The ship says *nothing useful* — just "the plant is getting loud."
+2. Point at Vega's screen: air climbing past 90. "She is the only one who can see that number. She has to shout it."
+3. Point at Rook's screen: draw spiking. "He is the only one who can see that. He has to shout it."
 4. "I can't tell her. I get **one** icon, and PUMP OFF is the only one my console has." — press it.
-5. Icon lands on Vega's glass, flashing, her phone buzzes. She kills the pump — and her acknowledge turns my line green.
+5. Icon lands on Vega's glass, flashing, her phone buzzes. She kills the pump — and her acknowledge turns my line green. Nobody else saw that ack. They have to ask.
 
 That's your demo. One emergency, start to finish, in about 20 seconds of real play. Then say:
 
@@ -36,7 +36,7 @@ That's your demo. One emergency, start to finish, in about 20 seconds of real pl
 
 > Party games get chaotic by giving you too many buttons. We got chaotic by making the information asymmetric.
 >
-> Vega has every control and one number. Rook has the power reading. Idris has the storm clock. Chen has the alarm log. **Nobody can see anyone else's screen, and the one person who can act is cut off from all of it.**
+> Vega has every control and one number. Rook has the power reading. Idris has the storm clock. Chen has the alarm log. **Nobody can see anyone else's screen, the ship will not name what broke, and the one person who can act is cut off from all of it.**
 >
 > So the failure mode isn't fumbling. It's a real communication breakdown — three people shouting the right answer at someone who physically cannot receive it.
 

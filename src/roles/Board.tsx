@@ -29,7 +29,7 @@ export function Board({ view }: { view: ClientView }) {
             <div className="value v-storm">
               {view.stormActive ? 'HIT' : s.stormEta == null ? '—' : Math.ceil(s.stormEta)}
             </div>
-            <StormScope eta={s.stormEta} active={view.stormActive} lead={24} />
+            <StormScope eta={s.stormEta} active={!!view.stormActive} lead={24} />
           </div>
         </div>
         <div className="strip">

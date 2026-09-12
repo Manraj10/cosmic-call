@@ -16,7 +16,7 @@ export function Pilot({ view }: { view: ClientView }) {
           {view.stormActive ? 'HIT' : eta == null ? '—' : `${Math.ceil(eta)}`}
           {eta != null && !view.stormActive ? <span className="unit">s</span> : null}
         </div>
-        <StormScope eta={eta} active={view.stormActive} lead={24} />
+        <StormScope eta={eta} active={!!view.stormActive} lead={24} />
         <div className="sub">
           {view.stormActive
             ? 'it is on us'

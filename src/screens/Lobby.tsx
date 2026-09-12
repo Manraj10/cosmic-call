@@ -92,7 +92,9 @@ export function Lobby(props: {
         >
           <span className="badge">▦</span>
           <span className="name">hab monitor</span>
-          <span className="desc">Spectator screen for the table. Good for filming.</span>
+          <span className="desc">
+            Spectator screen for filming. Players: do not look at this. It has every number.
+          </span>
         </button>
       </div>
 
@@ -103,8 +105,8 @@ export function Lobby(props: {
         </div>
       ) : mine && mine !== 'board' ? (
         <div className="brief">
-          You can talk all you like. Vega cannot hear any of it. The signal pad is the only thing
-          that reaches her, and all three of you share one cooldown.
+          The ship will not tell you what broke. Ask the other two what they see, then send Vega
+          one icon. She cannot hear any of this, and all three of you share one cooldown.
           <div className="honor">{CREW_JOB[mine]}</div>
         </div>
       ) : null}

@@ -14,7 +14,7 @@ export function Debrief({ view }: { view: ClientView }) {
         </div>
         <div className="why">
           {won
-            ? 'You got a message through in time. That is the entire skill of this game.'
+            ? 'You talked to each other and you got a message through. That is the entire skill of this game.'
             : view.loseReason}
         </div>
       </div>

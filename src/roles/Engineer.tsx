@@ -6,7 +6,9 @@ import { SignalPad } from '../components/SignalPad'
 
 export function Engineer({ view }: { view: ClientView }) {
   const power = view.power ?? 0
+  const draw = view.draw ?? 0
   const tone = power < 25 ? 'v-danger' : power < 50 ? 'v-power' : 'v-ok'
+  const load = draw >= 1.2 ? 'spiking' : draw >= 0.6 ? 'heavy' : 'quiet'
 
   return (
     <Frame who={CREW_META.engineer.callsign} tag="only you see the reactor" timeLeft={view.timeLeft}>
@@ -17,6 +19,13 @@ export function Engineer({ view }: { view: ClientView }) {
           <span className="unit">%</span>
         </div>
         <PowerCells power={power} />
+        <div className={`sub${load === 'spiking' ? ' v-danger' : ''}`}>
+          {load === 'spiking'
+            ? 'draw is spiking — something is dumping power'
+            : load === 'heavy'
+              ? 'draw is heavy'
+              : 'draw is quiet'}
+        </div>
         <div className="sub">
           {power < 15
             ? 'not enough to run the pump and the shields'

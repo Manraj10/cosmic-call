@@ -17,7 +17,7 @@ Each of the four astronauts can perceive exactly one thing, and nobody else can 
 | **Idris** | Dust-storm countdown | `SHIELDS` · `BRACE` |
 | **Chen** | Alarm log (what just broke) | `SEAL PORT` · `SEAL STBD` |
 
-Rook, Idris and Chen can shout across the table all they like. **Vega cannot hear any of it.** The only thing that reaches her is the **signal pad** — and every icon on it is welded to exactly one console. Chen is the only person alive who can tell Vega which valve is bleeding. Rook is the only one who can call the pump. Idris is the only one who can call the storm. All three share one 4-second cooldown, so a wasted press is wasted for everybody.
+Rook, Idris and Chen can shout across the table all they like. **They have to.** The ship will not name what broke, and nobody's screen carries anyone else's number. Vega cannot hear any of it. The only thing that reaches her is the **signal pad** — and every icon on it is welded to exactly one console. Chen is the only person alive who can tell Vega which valve is bleeding. Rook is the only one who can see the reactor draw spike. Idris is the only one who can see the storm clock. All three share one 4-second cooldown, so a wasted press is wasted for everybody.
 
 So the game is: diagnose out loud, work out whose call it is, then compress it into one icon before the air runs out.
 

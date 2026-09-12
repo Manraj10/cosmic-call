@@ -4,7 +4,6 @@ import {
   SIGNAL_COOLDOWN_MS,
   SIGNAL_OWNER,
   STORM_DURATION_SECONDS,
-  signalLabel,
 } from '../shared/content.ts'
 import { CREW_IDS, VALVES } from '../shared/types.ts'
 import type {
@@ -110,8 +109,17 @@ export class Hab {
   private alarms: string[] = []
   private signals: SignalEvent[] = []
   private lastSignalAt = -99
-  private lastSignal: SignalId | null = null
+  /** Each crew member only sees the call they themselves sent. */
+  private lastSignalBy: Record<CrewId, SignalId | null> = {
+    engineer: null,
+    pilot: null,
+    sparks: null,
+  }
   private vegaAckAt: number | null = null
+  /** Ack is one-to-one: only the person who sent the call sees it land. */
+  private lastAckedFrom: CrewId | null = null
+  /** Rook's unique tell — the number, not the reason. */
+  private busDraw = 0.1
   private outcome: Outcome | null = null
   private loseReason: string | null = null
   private seq = 1
@@ -205,8 +213,8 @@ export class Hab {
     this.power = 70
     this.seams = 0
     this.seamBlown = false
-    this.alarms = ['HAB-7 IN THE DUST CORRIDOR', '90 SECONDS TO THE FAR SIDE']
-    this.speak('Hab seven, ninety seconds of corridor. Vega is the only one who can touch anything.', 'astronaut')
+    this.alarms = ['HAB-7 IN THE DUST CORRIDOR', 'PLANT IS LIVE']
+    this.speak('Ninety seconds. Talk to each other. She cannot hear a word of it.', 'astronaut')
     this.listener?.onView()
     this.tickTimer = setInterval(() => this.tick(0.1), 100)
   }
@@ -264,28 +272,25 @@ export class Hab {
           this.leaks[ev.valve] = true
           this.valves[ev.valve] = 'open'
           this.alarm(`${ev.valve === 'port' ? 'PORT' : 'STARBOARD'} VALVE LEAKING`)
-          this.speak(
-            `Air is running out the ${ev.valve} valve. Vega cannot hear me say it.`,
-            'astronaut',
-          )
+          // Name nothing. Chen has the valve; Vega has the air. They have to talk.
+          this.speak('Something in the plant just opened.', 'astronaut')
         }
         break
       case 'runaway':
         this.pumpOn = true
         this.runawayUntil = this.elapsed + 14
         this.seamBlown = false
-        this.alarm('PUMP RUNAWAY — OVERPRESSURE RISK')
-        this.speak('The pump is running away. Somebody get Vega to shut it off!', 'astronaut')
+        // No alarm and no diagnosis. Rook sees the draw spike. Vega sees the
+        // air climb. If the ship named the pump, they would not need each other.
+        this.speak('The plant is getting loud.', 'astronaut')
         break
       case 'storm': {
         const eta = ev.eta ?? 20
         this.stormEta = eta
         this.impactAt = this.elapsed + eta
-        this.alarm(`DUST FRONT INBOUND T-${Math.round(eta)}`)
-        this.speak(
-          `Dust front. ${Math.round(eta)} seconds. She needs shields up and she needs to brace.`,
-          'astronaut',
-        )
+        // Idris is the only person who gets the number. Saying it out loud
+        // would make his console decoration.
+        this.speak('The corridor is changing colour.', 'astronaut')
         break
       }
       case 'impact': {
@@ -294,23 +299,21 @@ export class Hab {
         this.stormEndsAt = this.elapsed + STORM_DURATION_SECONDS
         this.scourWarned = false
         this.ingestWarned = false
-        this.alarm('IMPACT')
         let hit = 0
         if (!this.shieldsOn || this.power <= 2) {
           hit += 30
-          this.alarm('SHIELDS WERE DOWN — HULL SCOURED')
+          this.alarm('HULL SCOURED')
         }
         // Steep on purpose. At 14 a crew could skip the brace entirely and still
         // survive, which made Idris's second call decoration.
         if (this.elapsed - this.bracedAt > BRACE_WINDOW_SECONDS) {
           hit += 26
-          this.alarm('NOBODY BRACED')
         }
         if (hit) {
           this.air = clamp(this.air - hit, 0, 120)
-          this.speak('That went straight through us.', 'astronaut')
+          this.speak('That hit.', 'astronaut')
         } else {
-          this.speak('Shields held. She braced. Textbook.', 'astronaut')
+          this.speak('Still in one piece.', 'astronaut')
         }
         break
       }
@@ -345,8 +348,7 @@ export class Hab {
       if (this.elapsed >= this.stormEndsAt) {
         this.stormActive = false
         this.stormEta = null
-        this.alarm('FRONT HAS PASSED')
-        this.speak('Front has passed. She needs the pump back on.', 'astronaut')
+        this.speak('It is quieter out there.', 'astronaut')
       } else {
         // An intake pump running inside a dust front feeds the cabin dust.
         // Only Rook can call this off, and it is the whole reason he exists.
@@ -354,15 +356,14 @@ export class Hab {
           air -= 3.2 * dt
           if (!this.ingestWarned) {
             this.ingestWarned = true
-            this.alarm('PUMP IS INGESTING DUST')
-            this.speak('The pump is eating the storm. Get it shut down.', 'astronaut')
+            this.speak('The air tastes like grit.', 'astronaut')
           }
         }
         if (!this.shieldsOn || this.power <= 12) {
           air -= 1.35 * dt
           if (!this.scourWarned) {
             this.scourWarned = true
-            this.alarm('SHIELDS FAILING — HULL SCOURED')
+            this.alarm('HULL SCOURED')
           }
         }
       }
@@ -376,8 +377,8 @@ export class Hab {
       this.seamBlown = true
       this.seams += 1
       air -= 40
-      this.alarm(`OVERPRESSURE — SEAM ${this.seams} BLEW`)
-      this.speak('She blew a seam. That hull will never hold like it did.', 'astronaut')
+      this.alarm(`SEAM ${this.seams} BLEW`)
+      this.speak('The hull just complained.', 'astronaut')
     }
     if (this.seamBlown && air < 88) this.seamBlown = false
     this.air = clamp(air, 0, 120)
@@ -388,6 +389,7 @@ export class Hab {
     let draw = 0.1
     if (this.pumpOn) draw += this.elapsed < this.runawayUntil || this.stormActive ? 0.9 : 0.3
     if (this.shieldsOn) draw += this.stormActive ? 2.2 : 0.3
+    this.busDraw = draw
     this.power = clamp(this.power + 0.5 * dt - draw * dt, 0, 100)
 
     if (this.stormEta != null && !this.stormActive) {
@@ -459,10 +461,10 @@ export class Hab {
         // Vega's only outbound channel inside the game: one bit, "I saw it".
         // Everything else she has to say out loud, which works fine — the
         // block on her is one-directional.
-        if (this.signals.some((s) => s.fresh)) {
+        const latest = this.signals.filter((s) => s.fresh).at(-1)
+        if (latest) {
           this.vegaAckAt = this.elapsed
-          this.alarm('VEGA ACKNOWLEDGED')
-          this.speak('Vega read it.', 'system')
+          this.lastAckedFrom = latest.from
         }
         this.signals = this.signals.map((s) => ({ ...s, fresh: false }))
         break
@@ -473,13 +475,13 @@ export class Hab {
 
   private pushSignal(signal: SignalId, from: CrewId | null) {
     this.lastSignalAt = this.elapsed
-    this.lastSignal = signal
+    if (from) this.lastSignalBy[from] = signal
+    this.lastAckedFrom = null
     this.signals = [
       ...this.signals.slice(-5),
       { id: String(this.seq++), signal, from, at: Date.now(), fresh: true },
     ]
-    this.alarm(`SIGNAL SENT — ${signalLabel(signal)}`)
-    this.speak(`Signal to Vega. ${signalLabel(signal)}.`, 'system')
+    // Do not announce the call. The other two find out by asking.
   }
 
   private alarm(line: string) {
@@ -544,11 +546,12 @@ export class Hab {
       leakLights: null,
       pumpOn: null,
       shieldsOn: null,
-      braced: this.elapsed - this.bracedAt <= BRACE_WINDOW_SECONDS,
+      braced: null,
       signals: [],
       power: null,
+      draw: null,
       stormEta: null,
-      stormActive: this.stormActive,
+      stormActive: null,
       alarms: [],
       signalCooldownMs: null,
       lastSignal: null,
@@ -571,20 +574,24 @@ export class Hab {
         leakLights: null,
         pumpOn: this.pumpOn,
         shieldsOn: this.shieldsOn,
+        braced: this.elapsed - this.bracedAt <= BRACE_WINDOW_SECONDS,
         signals: this.signals,
       }
     }
 
-    const ackAgeMs =
-      this.vegaAckAt == null ? null : Math.round((this.elapsed - this.vegaAckAt) * 1000)
+    const ackFor = (crew: CrewId) =>
+      this.lastAckedFrom === crew && this.vegaAckAt != null
+        ? Math.round((this.elapsed - this.vegaAckAt) * 1000)
+        : null
 
     if (role === 'engineer') {
       return {
         ...base,
         power: Math.round(this.power),
+        draw: Math.round(this.busDraw * 10) / 10,
         signalCooldownMs: cooldown,
-        lastSignal: this.lastSignal,
-        ackAgeMs,
+        lastSignal: this.lastSignalBy.engineer,
+        ackAgeMs: ackFor('engineer'),
       }
     }
 
@@ -592,9 +599,10 @@ export class Hab {
       return {
         ...base,
         stormEta: this.stormEta,
+        stormActive: this.stormActive,
         signalCooldownMs: cooldown,
-        lastSignal: this.lastSignal,
-        ackAgeMs,
+        lastSignal: this.lastSignalBy.pilot,
+        ackAgeMs: ackFor('pilot'),
       }
     }
 
@@ -603,14 +611,15 @@ export class Hab {
         ...base,
         alarms: this.alarms,
         signalCooldownMs: cooldown,
-        lastSignal: this.lastSignal,
-        ackAgeMs,
+        lastSignal: this.lastSignalBy.sparks,
+        ackAgeMs: ackFor('sparks'),
       }
     }
 
     if (role === 'board') {
       return {
         ...base,
+        stormActive: this.stormActive,
         spectator: {
           air: Math.round(this.air),
           power: Math.round(this.power),

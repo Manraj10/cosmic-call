@@ -18,9 +18,9 @@ export const VEGA_META = {
   title: 'Vega',
   seat: 'In the air plant',
   constraint: 'Cannot hear anything',
-  honor: 'Silence your phone. Earplugs are better. You get light and vibration only.',
+  honor: 'Silence your phone. Earplugs are better. Shout the air number — they cannot see it.',
   blurb:
-    'You are the only one who can touch the ship. You are also the only one who can see how much air is left. You will not hear the alarm, the ship, or three people screaming your name.',
+    'You are the only one who can touch the ship. You are also the only one who can see how much air is left. You will not hear the alarm, the ship, or three people screaming your name. Say the number out loud.',
   accent: '#3ee0ff',
 } as const
 
@@ -33,7 +33,7 @@ export const CREW_META: Record<
     title: 'Rook',
     sees: 'Reactor power',
     blurb:
-      'You are the only one who knows how much power is left. Vega cannot run the pump and the shields on what you are looking at.',
+      'You are the only one who can see the reactor. If the draw spikes, say it. Nobody else will know.',
     accent: '#ffb020',
   },
   pilot: {
@@ -41,7 +41,7 @@ export const CREW_META: Record<
     title: 'Idris',
     sees: 'Dust storm clock',
     blurb:
-      'You are the only one who can see the storm coming. Nobody else knows how long they have.',
+      'You are the only one who can see the storm coming. Say the number. Nobody else has a clock.',
     accent: '#ff6a22',
   },
   sparks: {
@@ -49,7 +49,7 @@ export const CREW_META: Record<
     title: 'Chen',
     sees: 'Alarm log',
     blurb:
-      'You are the only one who knows what just broke. The log tells you which valve, which system, right now.',
+      'You are the only one who can see which valve is bleeding. Say port or starboard. The others cannot see the log.',
     accent: '#5cff9d',
   },
 }
