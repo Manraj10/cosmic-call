@@ -4,6 +4,43 @@ A 2–4 player cooperative Mars survival game. A rescue vehicle arrives in **7 m
 
 Talk out loud. **Tap modules to walk.** Carry the one item you can hold. Solve exact puzzles. Survive the cascade.
 
+## Upload to GitHub
+
+This folder is the full project. It does **not** include `node_modules` — run `npm install` after you clone or unzip.
+
+If you downloaded **`dont-kill-the-astronaut.zip`**, unzip it, then push to your empty repo (this project was aimed at [`shainag03/oberon.mp`](https://github.com/shainag03/oberon.mp)):
+
+```bash
+unzip dont-kill-the-astronaut.zip
+cd dont-kill-the-astronaut
+git init
+git add .
+git commit -m "Don't Kill the Astronaut — first upload"
+git branch -M main
+git remote add origin https://github.com/shainag03/oberon.mp.git
+git push -u origin main
+```
+
+GitHub Desktop: unzip → **File → Add Local Repository** → **Publish repository** (or push to `oberon.mp` if it already exists).
+
+If GitHub already has a commit (README/license) and rejects the push:
+
+```bash
+git pull origin main --allow-unrelated-histories --no-edit
+git push -u origin main
+```
+
+Prefer the full git history? Clone the **`.bundle`** instead of the zip:
+
+```bash
+git clone dont-kill-the-astronaut.bundle dont-kill-the-astronaut
+cd dont-kill-the-astronaut
+git remote set-url origin https://github.com/shainag03/oberon.mp.git
+git push -u origin main
+```
+
+You must be logged into GitHub on **your** machine (`gh auth login`, GitHub Desktop, or HTTPS). This cloud session cannot push to GitHub for you.
+
 ## Play
 
 You need **at least two astronauts**. A computer can host the shared **Habitat Monitor** without taking a crew seat.
