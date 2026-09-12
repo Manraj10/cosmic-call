@@ -26,8 +26,20 @@
 .mc-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; }
 .mc-world, .mc-channel, .mc-eventlog { background: var(--mc-panel); border: 1px solid var(--mc-line); border-radius: 10px; overflow: hidden; }
 .mc-panel-heading { padding: 16px 20px; border-bottom: 1px solid var(--mc-line); }.mc-panel-heading h2 { margin: 0; font-size: 12px; font-weight: 500; }.mc-panel-heading > span { color: var(--mc-muted); font-size: 8px; letter-spacing: 1px; text-align: right; }
-.mc-habitat { width: 100%; display: block; aspect-ratio: 880 / 520; }.mc-route { stroke: var(--mc-mint); stroke-width: 3px; stroke-dasharray: 6 8px; fill: none; animation: mc-flow 1s linear infinite; }.mc-astronaut { transition: transform .12s linear; }
-.mc-storm-lines { animation: mc-dust 1.1s linear infinite; }
+.mc-habitat { width: 100%; display: block; aspect-ratio: 880 / 520; background: #07040c; }.mc-route { stroke: #ffb020; stroke-width: 4px; stroke-dasharray: 6 8px; fill: none; opacity: .9; animation: mc-flow 1s linear infinite; }
+.mch-label, .mch-status, .mch-vega-label { text-anchor: middle; paint-order: stroke; stroke: #07040c; stroke-linejoin: round; }
+.mch-label { fill: #eef8ff; font: 700 22px 'Space Grotesk', system-ui, sans-serif; letter-spacing: 2px; stroke-width: 6px; }
+.mch-status { font: 700 14px 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: 2px; stroke-width: 5px; }
+.mch-vega-label { fill: #07131c; stroke: none; font: 800 15px 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: 3px; }
+.mch-foot { fill: #f6c19b; opacity: .7; font: 11px 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: 3px; }
+.mch-vega { transition: transform .12s linear; }
+.mch-halo { transform-box: fill-box; transform-origin: center; animation: mch-pulse 1.8s ease-in-out infinite; }
+.mch-dust { animation: mch-dust 1.2s linear infinite; }.mch-grit { animation: mch-grit 2.6s linear infinite; }
+.mch-flicker { animation: mch-flicker 2.2s steps(1) infinite; }
+@keyframes mch-pulse { 50% { transform: scale(1.35); opacity: .06; } }
+@keyframes mch-dust { to { transform: translate(120px, 60px); } }@keyframes mch-grit { to { transform: translate(280px, 140px); } }
+@keyframes mch-flicker { 0%, 100% { opacity: 1; } 8% { opacity: .3; } 12% { opacity: 1; } 55% { opacity: .5; } 58% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .mc-habitat *, .mc-habitat *::before, .mc-habitat *::after { animation: none !important; transition: none !important; } }
 .mc-location { padding: 17px 20px; border-top: 1px solid var(--mc-line); font-size: 10px; justify-content: flex-start; }.mc-location-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--mc-mint); box-shadow: 0 0 14px #8ce8df55; flex-shrink: 0; }.mc-location strong { display: block; font-size: 9px; letter-spacing: 1.5px; color: var(--mc-mint); }.mc-location div > span { display: block; margin-top: 5px; color: var(--mc-muted); }
 .mc-token { margin-left: auto; color: var(--mc-muted); text-align: right; font-size: 9px; }.mc-token.carried { color: #ffdb86; }
 .mc-crew { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--mc-line); padding: 17px 20px; gap: 14px; }.mc-crew > div { display: grid; grid-template-columns: 6px 1fr; align-items: center; gap: 6px; min-width: 0; }.mc-crew strong { font-size: 10px; font-weight: 500; }.mc-crew span { grid-column: 2; font-size: 8px; color: var(--mc-muted); text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }.mc-crew i { background: #64718d; }.mc-crew .aboard i { background: var(--mc-mint); }
@@ -39,8 +51,25 @@
 .mc-valves > div { display: flex; justify-content: space-between; gap: 6px; margin-top: 22px; font-size: 10px; }.mc-valves > div > span { color: var(--mc-muted); }.mc-valves b { color: var(--mc-purple); font-weight: 500; }
 .mc-eventlog > div:last-child { padding: 4px 20px 12px; }.mc-eventlog p { font-size: 10px; color: var(--mc-muted); line-height: 1.8; display: flex; gap: 16px; }.mc-eventlog p:first-child { color: var(--mc-ink); }.mc-eventlog p span { color: var(--mc-amber); font-size: 8px; padding-top: 2px; flex-shrink: 0; }
 .mc-footer { font-size: 8px; letter-spacing: 1px; color: var(--mc-muted); padding-top: 24px; line-height: 1.7; }
-@keyframes mc-flow { to { stroke-dashoffset: -28; } }@keyframes mc-dust { to { transform: translateX(100px); } }
+@keyframes mc-flow { to { stroke-dashoffset: -28; } }
 @media (min-width: 1600px) { .mission-control { padding-inline: max(40px, calc((100vw - 1480px) / 2)); } }
 @media (max-width: 1000px) { .mc-layout { grid-template-columns: minmax(0, 1fr) 260px; gap: 14px; }.mc-live { display: none; }.mc-systems > div { padding: 15px; }.mc-systems { gap: 10px; }.mc-location { flex-wrap: wrap; }.mc-token { margin-left: 24px; }.mc-crew { gap: 7px; padding-inline: 14px; } }
 @media (max-width: 720px) { .mc-layout { grid-template-columns: 1fr; }.mc-traffic { max-height: 310px; }.mc-systems { grid-template-columns: repeat(2, 1fr); }.mc-header { padding-bottom: 16px; }.mc-brand { font-size: 19px; }.mc-orbit { font-size: 37px; }.mc-mission { align-items: flex-end; gap: 10px; }.mc-mission h1 { font-size: 28px; letter-spacing: -1px; }.mc-mission p { font-size: 10px; }.mc-countdown strong { font-size: 43px; letter-spacing: -3px; }.mc-countdown small { font-size: 8px; letter-spacing: 1px; }.mc-fullscreen span { display: none; }.mc-footer { align-items: flex-start; flex-direction: column; gap: 8px; }.mc-panel-heading { padding-inline: 14px; }.mc-location { padding-inline: 14px; }.mc-crew strong { font-size: 9px; }.mc-crew span { font-size: 7px; } }
 @media (prefers-reduced-motion: reduce) { .mission-control *, .mission-control *::before, .mission-control *::after { animation: none !important; transition: none !important; } }
+/* Keep the rescue clock, map and vital signs together on a laptop at the expo. */
+@media (min-width: 721px) {
+  .mc-header { padding-bottom: 14px; }
+  .mc-mission { padding: 18px 0; }
+  .mc-mission h1 { font-size: clamp(28px, 3vw, 42px); }
+  .mc-countdown strong { font-size: 58px; }
+  .mc-timeline { margin-bottom: 16px; }
+  .mc-panel-heading { padding: 12px 16px; }
+  .mc-habitat { height: clamp(260px, 36vh, 390px); aspect-ratio: auto; }
+  .mc-location { padding-block: 12px; }
+  .mc-crew { padding-block: 12px; }
+  .mc-traffic { max-height: 265px; }
+  .mc-systems { margin-block: 16px; }
+  .mc-systems > div { padding: 15px 18px; }
+  .mc-systems strong { font-size: 36px; margin-block: 8px; }
+  .mc-valves > div { margin-top: 16px; }
+}

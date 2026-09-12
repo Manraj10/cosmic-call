@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CREW_META, MISSION_SECONDS, signalLabel } from '@shared/content'
 import { MODULE_LABEL } from '@shared/habitat'
 import { ROLE_IDS, type ClientView } from '@shared/types'
@@ -10,12 +10,13 @@ const SEAL_LABEL = { sealed: 'SEALED', broken: 'BROKEN SEAL', stale: 'OLD COUNTE
 /** Public telemetry belongs only on this spectator screen. */
 export function Board({ view }: { view: ClientView }) {
   const [screenError, setScreenError] = useState('')
+  useEffect(() => { window.scrollTo(0, 0) }, [])
   const s = view.spectator
   if (!s) return null
   const remaining = Math.max(0, Math.ceil(view.timeLeft ?? 0))
   const elapsed = Math.max(0, MISSION_SECONDS - remaining)
   const critical = s.air < 18 || s.air > 92
-  const storm = s.stormEta !== null && s.stormEta <= 0
+  const storm = view.stormActive === true
   const operator = s.operator
   const traffic = s.traffic.slice(-6).reverse()
 
@@ -50,15 +51,15 @@ export function Board({ view }: { view: ClientView }) {
           <div className="mc-crew">{ROLE_IDS.map((role) => {
             const player = view.players.find((p) => p.role === role && p.connected)
             const name = role === 'vega' ? 'VEGA' : CREW_META[role].callsign
-            return <div key={role} className={player ? 'aboard' : ''}><i /><strong>{name}</strong><span>{player?.name ?? 'SIM COVERAGE'}</span></div>
+            return <div key={role} className={player ? 'aboard' : ''}><i /><strong>{name}</strong><span>{player?.name ?? 'UNSEATED'}</span></div>
           })}</div>
         </section>
         <aside className="mc-channel">
-          <div className="mc-panel-heading"><h2>Command channel</h2><span>{s.traffic.length} RECEIVED</span></div>
+          <div className="mc-panel-heading"><h2>Command channel</h2><span>RECENT ORDERS</span></div>
           <div className={`mc-threat${s.busThreat ? ' active' : ''}`} role="status"><span>{s.busThreat ? '⚠' : '◈'}</span><div><strong>{s.busThreat ? 'GHOST ON THE BUS' : 'MONITORING THE BUS'}</strong><p>{s.busThreat ?? 'Every order carries a seal. A stolen key can make a hostile order look genuine.'}</p></div></div>
           <div className="mc-traffic">{traffic.length ? traffic.map((packet, i) => (
             <div className={`mc-packet ${packet.seal}`} key={`${s.traffic.length - i}-${packet.tag}`}>
-              <div><span>{packet.from ? CREW_META[packet.from].callsign : 'UNKNOWN'} → VEGA</span><span>#{String(s.traffic.length - i).padStart(2, '0')}</span></div>
+              <div><span>{packet.from ? CREW_META[packet.from].callsign : 'UNKNOWN'} → VEGA</span><span>{i === 0 ? 'LATEST' : 'EARLIER'}</span></div>
               <strong>{signalLabel(packet.signal)}</strong><footer><b>{SEAL_LABEL[packet.seal]}</b><code>{packet.tag}</code></footer>
             </div>
           )) : <div className="mc-empty"><span>⌁</span>Listening for the first call.<small>Crew orders will appear here as they reach Vega.</small></div>}</div>

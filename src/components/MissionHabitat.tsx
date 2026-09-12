@@ -1,16 +1,27 @@
 import { MODULE_LABEL, MODULES, walkSeconds } from '@shared/habitat'
 import type { HabView, ModuleId } from '@shared/types'
 
+/** Centre of each module's deck. Spine in the middle, PLANT above, LOCK left, COMMS right. */
 const POSITION: Record<ModuleId, [number, number]> = {
-  plant: [210, 270], lock: [440, 130], spine: [440, 355], comms: [670, 270],
+  plant: [440, 150], lock: [180, 340], spine: [440, 340], comms: [700, 340],
 }
 const COLOR: Record<ModuleId, string> = {
-  plant: '#8ce8df', lock: '#ffb16c', spine: '#d9dce9', comms: '#c7afff',
+  plant: '#6ff0c8', lock: '#ffb020', spine: '#7ee7ff', comms: '#c2a8ff',
 }
+/** Deck top and side colours, taken from the habitat prototype's room palette. */
+const DECK: Record<ModuleId, [string, string]> = {
+  plant: ['#14443a', '#0a2420'], lock: ['#243444', '#121c26'], spine: ['#1e2c3c', '#0e1822'], comms: ['#2a2450', '#161230'],
+}
+const W = 96, H = 46, D = 22
+const TOP = `M0 ${-H}L${W} 0L0 ${H}L${-W} 0Z`
+const INNER = `M${-W * 0.62} 0L0 ${-H * 0.62}L${W * 0.62} 0L0 ${H * 0.62}Z`
+const STARS = [[70, 34], [130, 80], [205, 26], [290, 62], [380, 22], [520, 70], [590, 30], [640, 88], [820, 110], [860, 40], [35, 140], [470, 44]]
+const KEY = <g fill="#ffd27a"><circle r="6" fill="none" stroke="#ffd27a" strokeWidth="3" /><path d="M5-1.5h14v3h-2.5v4.5h-3v-4.5H5Z" /></g>
 
 /** Follow the server's two-hop route through the spine, never across empty terrain. */
+// oxlint-disable-next-line react/only-export-components -- also exercised by the telemetry check
 export function operatorPosition(hab: HabView): [number, number] {
-  if (!hab.walkingTo) return POSITION[hab.at]
+  if (!hab.walkingTo || hab.walkingTo === hab.at) return POSITION[hab.at]
   const path = hab.at === 'spine' || hab.walkingTo === 'spine'
     ? [hab.at, hab.walkingTo] : [hab.at, 'spine' as const, hab.walkingTo]
   const progress = Math.max(0, Math.min(1, 1 - hab.arriveInMs / (walkSeconds(hab.at, hab.walkingTo) * 1000)))
@@ -25,47 +36,87 @@ export function MissionHabitat({ operator, storm, pumpOn, shieldsOn }: {
   operator: HabView; storm: boolean; pumpOn: boolean; shieldsOn: boolean
 }) {
   const [x, y] = operatorPosition(operator)
+  const { at, walkingTo, holdingToken, tokenAt } = operator
+  const status: Record<ModuleId, [string, boolean]> = {
+    plant: [`PUMP ${pumpOn ? 'ON' : 'OFF'}`, !pumpOn], lock: [`SHIELDS ${shieldsOn ? 'UP' : 'DOWN'}`, !shieldsOn],
+    comms: ['KEY REGISTRY', false], spine: ['TRANSIT HUB', false],
+  }
   return (
     <svg className="mc-habitat" viewBox="0 0 880 520" role="img"
-      aria-label={`Habitat map. Vega ${operator.walkingTo ? `walking to ${MODULE_LABEL[operator.walkingTo]}` : `at ${MODULE_LABEL[operator.at]}`}. Key token ${operator.holdingToken ? 'carried by Vega' : operator.tokenAt ? `at ${MODULE_LABEL[operator.tokenAt]}` : 'unavailable'}.`}>
+      aria-label={`Habitat map. Vega ${walkingTo ? `walking to ${MODULE_LABEL[walkingTo]}` : `at ${MODULE_LABEL[at]}`}. Key token ${holdingToken ? 'carried by Vega' : tokenAt ? `at ${MODULE_LABEL[tokenAt]}` : 'unavailable'}.`}>
       <defs>
-        <pattern id="mc-grid" width="44" height="24" patternUnits="userSpaceOnUse" patternTransform="skewX(-30)"><path d="M44 0H0V24" fill="none" stroke="#b68c85" strokeOpacity=".12" /></pattern>
-        <radialGradient id="mc-terrain"><stop stopColor="#604040" /><stop offset="1" stopColor="#1b202d" /></radialGradient>
-        <linearGradient id="mc-hull" x2="0" y2="1"><stop stopColor="#d7d8df" /><stop offset="1" stopColor="#9499ae" /></linearGradient>
+        <filter id="mch-glow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="3" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+        <filter id="mch-soft" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="8" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+        <radialGradient id="mch-sky" cx=".5" cy="1.2" r="1.1"><stop stopColor="#c44a1a" /><stop offset=".42" stopColor="#1c0a0e" /><stop offset=".75" stopColor="#07040c" /></radialGradient>
+        <radialGradient id="mch-sky-storm" cx=".5" cy="1.2" r="1.1"><stop stopColor="#8a3a12" /><stop offset=".45" stopColor="#261006" /><stop offset=".8" stopColor="#0a0402" /></radialGradient>
+        <linearGradient id="mch-deck" x2="0" y2="1"><stop stopColor="#7ee7ff" stopOpacity=".22" /><stop offset="1" stopColor="#ff8a3a" stopOpacity=".04" /></linearGradient>
+        <pattern id="mch-dust" width="60" height="60" patternUnits="userSpaceOnUse"><g fill="#e0a878"><circle cx="8" cy="12" r="1.6" /><circle cx="38" cy="30" r="1.1" /><circle cx="22" cy="50" r="2" /><circle cx="52" cy="6" r=".9" /></g></pattern>
+        <pattern id="mch-grit" width="140" height="140" patternUnits="userSpaceOnUse"><g fill="#f0c090"><circle cx="30" cy="40" r="3" /><circle cx="100" cy="110" r="2.4" /><circle cx="118" cy="22" r="1.8" /></g></pattern>
       </defs>
-      <rect width="880" height="520" fill="url(#mc-terrain)" /><rect width="880" height="520" fill="url(#mc-grid)" />
-      <g fill="none" stroke="#e2b39a" opacity=".12"><ellipse cx="440" cy="280" rx="390" ry="207" /><ellipse cx="440" cy="280" rx="340" ry="174" /><path d="M0 434Q90 390 155 453T350 486M624 40Q698 104 880 65M35 110l25-8 35 12-21 9zM777 435l28-12 40 13-30 11z" /></g>
-      {(['plant', 'lock', 'comms'] as const).map((id) => <g key={id}>
-        <path d={`M440 355L${POSITION[id].join(' ')}`} stroke="#101520" strokeWidth="38" />
-        <path d={`M440 355L${POSITION[id].join(' ')}`} stroke="#667081" strokeWidth="24" />
-        <path d={`M440 355L${POSITION[id].join(' ')}`} stroke="#a4b1c0" strokeWidth="2" strokeDasharray="5 9" />
-      </g>)}
-      {operator.walkingTo ? <path className="mc-route" d={`M${POSITION[operator.at].join(' ')}${operator.at !== 'spine' && operator.walkingTo !== 'spine' ? 'L440 355' : ''}L${POSITION[operator.walkingTo].join(' ')}`} /> : null}
-      {MODULES.map((id) => {
-        const [mx, my] = POSITION[id]
-        const active = operator.at === id && !operator.walkingTo
-        const status = id === 'plant' ? `PUMP ${pumpOn ? 'ON' : 'OFF'}` : id === 'lock' ? `SHIELDS ${shieldsOn ? 'UP' : 'DOWN'}` : id === 'comms' ? 'KEY REGISTRY' : 'TRANSIT HUB'
-        return <g key={id} transform={`translate(${mx} ${my})`}>
-          <ellipse cy="34" rx="106" ry="46" fill="#0e121b" opacity=".4" />
-          <path d="M-104 0L0 46L104 0V26L0 72L-104 26Z" fill="#454e63" stroke="#1b2333" /><path d="M0 46V72L104 26V0Z" fill="#333e53" />
-          <path d="M-104 0L0-46L104 0L0 46Z" fill="url(#mc-hull)" stroke={active ? COLOR[id] : '#a4acbe'} strokeWidth={active ? 3 : 1} />
-          <path d="M-78 0L0-34L78 0L0 34Z" fill="#28364b" stroke={COLOR[id]} strokeOpacity=".5" /><path d="M-55 0L0-24L55 0L0 24Z" fill={COLOR[id]} opacity=".12" />
-          {[-1, 0, 1].map((n) => <path key={n} d={`M${n * 17 - 18} 18l35-16`} stroke={COLOR[id]} opacity=".35" strokeWidth="3" />)}
-          <path d="M-87 23l52 23M35 46l52-23" stroke={COLOR[id]} strokeWidth="4" />
-          <text y="-71" textAnchor="middle" fill="#f1eef5" fontSize="16" fontWeight="700" letterSpacing="2">{MODULE_LABEL[id].toUpperCase()}</text>
-          <text y="-54" textAnchor="middle" fill={COLOR[id]} fontSize="10" letterSpacing="1.5">{status}</text>
-          {operator.tokenAt === id ? <g transform="translate(56 -4)" fill="#ffdb86"><circle r="6" fill="none" stroke="#ffdb86" strokeWidth="3" /><path d="M5 0h16v6h-4v-3h-5v3H9V0Z" /></g> : null}
+
+      <rect width="880" height="520" fill={storm ? 'url(#mch-sky-storm)' : 'url(#mch-sky)'} />
+      {storm ? null : <g>
+        {STARS.map(([sx, sy], i) => <circle key={i} cx={sx} cy={sy} r={i % 3 ? 1 : 1.6} fill="#fff" opacity={0.45 + (i % 5) * 0.08} />)}
+        <circle cx="770" cy="56" r="20" fill="#ffd27a" opacity=".85" filter="url(#mch-soft)" />
+      </g>}
+      <ellipse cx="440" cy="530" rx="520" ry="80" fill="#4a1c0c" opacity=".55" />
+      <ellipse cx="170" cy="505" rx="160" ry="34" fill="#2a1008" opacity=".5" />
+      <ellipse cx="720" cy="512" rx="180" ry="30" fill="#3a1408" opacity=".45" />
+
+      {(['plant', 'lock', 'comms'] as const).map((id) => {
+        const d = `M${POSITION.spine.join(' ')}L${POSITION[id].join(' ')}`
+        return <g key={id} fill="none" strokeLinecap="round">
+          <path d={d} stroke="#7ee7ff" strokeWidth="44" opacity=".07" />
+          <path d={d} stroke="#0b1c28" strokeWidth="26" />
+          <path d={d} stroke="#7ee7ff" strokeWidth="14" opacity=".4" />
+          <path d={d} stroke="#d6fbff" strokeWidth="3" opacity=".75" strokeDasharray="6 10" />
         </g>
       })}
-      <g className="mc-astronaut" transform={`translate(${x} ${y - 18})`}>
-        <ellipse cy="25" rx="18" ry="7" fill="#000" opacity=".4" /><circle cy="3" r="27" fill="none" stroke="#8ce8df" strokeOpacity=".45" strokeDasharray="3 5" />
-        <rect x="-16" y="-4" width="32" height="23" rx="6" fill="#8c94ac" /><rect x="-11" y="2" width="22" height="24" rx="7" fill="#eeeef5" />
-        <path d="M-6 18v10M6 18v10" stroke="#eeeef5" strokeWidth="7" /><circle cy="-8" r="14" fill="#f2f1f7" /><rect x="-10" y="-14" width="20" height="11" rx="5" fill="#203649" /><path d="M-6-11h8" stroke="#8ce8df" strokeWidth="2" />
-        {operator.holdingToken ? <circle cx="20" cy="11" r="6" fill="#ffdb86" stroke="#342b32" strokeWidth="2" /> : null}
-        <rect x="-30" y="-51" width="60" height="21" rx="4" fill="#8ce8df" /><text y="-37" textAnchor="middle" fill="#14202d" fontSize="11" fontWeight="800" letterSpacing="2">VEGA</text>
+      {walkingTo ? <path className="mc-route" d={`M${POSITION[at].join(' ')}${at !== 'spine' && walkingTo !== 'spine' ? `L${POSITION.spine.join(' ')}` : ''}L${POSITION[walkingTo].join(' ')}`} /> : null}
+
+      {MODULES.map((id) => {
+        const [fill, side] = DECK[id]
+        const lit = (at === id && !walkingTo) || walkingTo === id
+        const [text, alarm] = status[id]
+        const below = id === 'spine'
+        return <g key={id} transform={`translate(${POSITION[id].join(' ')})`}>
+          <ellipse cy={D + 10} rx={W + 16} ry={H + 6} fill="#000" opacity=".35" />
+          <path d={`M${-W} 0L0 ${H}V${H + D}L${-W} ${D}Z`} fill={side} />
+          <path d={`M0 ${H}L${W} 0V${D}L0 ${H + D}Z`} fill={side} opacity=".7" />
+          <path d={`M${-W + 8} ${D - 4}L0 ${H + D - 6}L${W - 8} ${D - 4}`} fill="none" stroke={COLOR[id]} strokeOpacity=".55" strokeWidth="2" />
+          <path className={id === 'lock' && storm && alarm ? 'mch-flicker' : undefined} d={TOP} fill={fill}
+            stroke={lit ? COLOR[id] : '#7ee7ff66'} strokeWidth={lit ? 3.5 : 1.5} filter={lit ? 'url(#mch-glow)' : undefined} />
+          <path d={TOP} fill="url(#mch-deck)" />
+          <path d={INNER} fill="none" stroke={COLOR[id]} strokeOpacity=".35" strokeDasharray="4 6" />
+          <ellipse rx="22" ry="11" fill={COLOR[id]} opacity=".16" />
+          {id === 'plant' ? [-54, -32, 32, 54].map((cx) => <circle key={cx} cx={cx} cy={Math.abs(cx) === 54 ? 2 : -8} r="7" fill={side} stroke={COLOR[id]} strokeOpacity=".7" />) : null}
+          {id === 'lock' ? [0, 1, 2].map((i) => <path key={i} d={`M${-66 + i * 18} 12l8-8 8 8`} fill="none" stroke={COLOR[id]} strokeWidth="3" opacity=".8" />) : null}
+          {id === 'comms' ? <g stroke={COLOR[id]} strokeWidth="2" fill="none"><path d="M58 -4L70 -40" /><ellipse cx="70" cy="-44" rx="11" ry="6" /></g> : null}
+          {id === 'spine' ? [[-W, 0], [W, 0], [0, -H]].map(([hx, hy]) => <circle key={hx + hy} cx={hx * 0.8} cy={hy * 0.8} r="5" fill={COLOR[id]} opacity=".5" />) : null}
+          <text className="mch-label" y={below ? H + D + 34 : -H - 34}>{MODULE_LABEL[id].toUpperCase()}</text>
+          <text className={`mch-status${alarm ? ' alarm' : ''}${alarm && storm ? ' mch-flicker' : ''}`} y={below ? H + D + 54 : -H - 12} fill={alarm ? '#ff7a6a' : COLOR[id]}>{text}</text>
+        </g>
+      })}
+
+      {tokenAt && !holdingToken ? <g transform={`translate(${POSITION[tokenAt][0] + 40} ${POSITION[tokenAt][1] + 18}) scale(1.3)`} filter="url(#mch-glow)">{KEY}</g> : null}
+
+      <g className="mch-vega" style={{ transform: `translate(${x}px, ${y}px)` }}>
+        <ellipse cy="12" rx="16" ry="6" fill="#000" opacity=".45" />
+        <circle className="mch-halo" r="24" fill="#7ee7ff" opacity=".2" />
+        <circle r="11" fill="#7ee7ff" filter="url(#mch-glow)" />
+        <circle r="5" fill="#fff" />
+        {holdingToken ? <g filter="url(#mch-glow)"><circle r="18" fill="none" stroke="#ffd27a" strokeWidth="3" /><g transform="translate(16 12) scale(1.1)">{KEY}</g></g> : null}
+        <rect x="-32" y="-54" width="64" height="24" rx="5" fill="#7ee7ff" />
+        <text className="mch-vega-label" y="-36">VEGA</text>
       </g>
-      {storm ? <g className="mc-storm-lines" stroke="#ffc48c" strokeOpacity=".2" strokeWidth="2">{Array.from({ length: 12 }, (_, i) => <path key={i} d={`M${-180 + i * 100} 0l-190 520`} />)}</g> : null}
-      <text x="25" y="488" fill="#b2afbe" fontSize="10" letterSpacing="2">HAB-7 / SURFACE TELEMETRY</text><text x="855" y="488" textAnchor="end" fill="#b2afbe" fontSize="10" letterSpacing="2">MARS · SECTOR 07</text>
+
+      {storm ? <g pointerEvents="none">
+        <rect width="880" height="520" fill="#c8702a" opacity=".06" />
+        <rect className="mch-dust" x="-140" y="-140" width="1160" height="800" fill="url(#mch-dust)" opacity=".55" />
+        <rect className="mch-grit" x="-420" y="-280" width="1440" height="940" fill="url(#mch-grit)" opacity=".6" />
+      </g> : null}
+      <text className="mch-foot" x="22" y="506">HAB-7 / SURFACE TELEMETRY</text>
+      <text className="mch-foot" x="858" y="506" textAnchor="end">MARS · SECTOR 07</text>
     </svg>
   )
 }
