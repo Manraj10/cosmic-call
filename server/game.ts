@@ -440,7 +440,8 @@ export class Hab {
         break
       }
       case 'ghost-steal': {
-        const victim = this.bus.pickVictim(this.rng)
+        const seated = CREW_IDS.filter((c) => this.isSeated(c))
+        const victim = this.bus.pickVictim(this.rng, seated)
         this.bus.steal(victim, this.elapsed)
         // Nothing is announced. The victim's own signing log is the only tell,
         // and the operator's glass will now call these orders genuine.
@@ -535,6 +536,33 @@ export class Hab {
     return false
   }
 
+  /**
+   * Short crew: empty seats merge onto whoever is still connected. Round-robin
+   * in CREW_IDS order so a table of two still gets every readout and every call.
+   */
+  private coversOf(role: CrewId): CrewId[] {
+    const seated = CREW_IDS.filter((c) => this.isSeated(c))
+    if (!seated.includes(role)) return [role]
+    if (seated.length >= CREW_IDS.length) return [role]
+    const empty = CREW_IDS.filter((c) => !seated.includes(c))
+    const mine: CrewId[] = [role]
+    for (let i = 0; i < empty.length; i++) {
+      if (seated[i % seated.length] === role) mine.push(empty[i]!)
+    }
+    return mine
+  }
+
+  private orderForCovered(covers: CrewId[]): { text: string; tone: 'fight' | 'warn' } | null {
+    let pick: { text: string; tone: 'fight' | 'warn' } | null = null
+    for (const c of covers) {
+      const o = this.orderFor(c)
+      if (!o) continue
+      if (o.tone === 'fight') return o
+      pick ??= o
+    }
+    return pick
+  }
+
   /** Empty seats get covered slowly, so two people can still play. */
   private npcs() {
     const anyCrewSeated = CREW_IDS.some((c) => this.isSeated(c))
@@ -592,15 +620,35 @@ export class Hab {
    * unsigned order could get in, and it is thirty lines long.
    */
   async applyAction(playerId: string, action: ClientAction): Promise<string | null> {
-    if (this.phase !== 'play') return 'Mission not live'
     const p = this.players.get(playerId)
-    if (!p?.role || p.role === 'board') return 'You are spectating'
+    if (!p) return 'Unknown crew'
+
+    if (action.type === 'rematch') {
+      if (!p.host) return 'Only the hab lead can rematch'
+      if (this.phase !== 'end') return 'Finish the round first'
+      this.stopClock()
+      this.phase = 'lobby'
+      this.outcome = null
+      this.loseReason = null
+      this.incident = null
+      this.busThreat = null
+      this.signals = []
+      this.alarms = []
+      this.unsealedAsk = []
+      for (const pl of this.players.values()) pl.ready = false
+      this.listener?.onView()
+      return null
+    }
+
+    if (this.phase !== 'play') return 'Mission not live'
+    if (!p.role || p.role === 'board') return 'You are spectating'
     const role = p.role
 
     if (action.type === 'signal') {
       if (role === 'vega') return 'You are the one being signalled'
       const owner = SIGNAL_OWNER[action.signal]
-      if (owner !== role) return 'Not your call to make'
+      const covers = this.coversOf(role as CrewId)
+      if (!covers.includes(owner)) return 'Not your call to make'
       const remain = SIGNAL_COOLDOWN_MS - (this.elapsed - this.lastSignalAt) * 1000
       if (remain > 0) return 'Pad is still resetting'
 
@@ -899,13 +947,13 @@ export class Hab {
       if (fresh && fresh.seal === 'stale') {
         return { text: 'OLD COUNTER — THIS ORDER ALREADY RAN ONCE.', tone: 'fight' }
       }
-      if (fresh && REVOKE_TARGET[fresh.signal]) {
+      if (fresh && fresh.seal === 'sealed' && REVOKE_TARGET[fresh.signal]) {
         return {
           text: `ROTATE ${REVOKE_TARGET[fresh.signal]!.toUpperCase()} — TOKEN TO COMMS`,
           tone: 'fight',
         }
       }
-      if (fresh?.signal === 'pump-off' && air < 92) {
+      if (fresh?.signal === 'pump-off' && fresh.seal === 'sealed' && air < 92) {
         return { text: 'THEY WANT THE PUMP OFF. YOUR AIR SAYS ABSOLUTELY NOT.', tone: 'fight' }
       }
       if (runaway && this.pumpOn && air < 92) {
@@ -914,7 +962,7 @@ export class Hab {
       if (air >= 92) return { text: 'TOO MUCH AIR — KILL THE PUMP OR IT SPLITS', tone: 'fight' }
       if (air < 40 && !this.pumpOn) return { text: 'ABSOLUTELY NOT. START THE PUMP.', tone: 'fight' }
       if (air < 48) return { text: 'AIR IS MINE. KEEP THE PUMP ON.', tone: 'fight' }
-      if (fresh) {
+      if (fresh && fresh.seal === 'sealed') {
         const dest = moduleFor(signalSendsTo(fresh.signal))
         return {
           text: dest
@@ -923,6 +971,7 @@ export class Hab {
           tone: 'warn',
         }
       }
+      if (fresh) return { text: 'A PICTURE JUST HIT. READ THE SEAL BEFORE YOU MOVE.', tone: 'warn' }
       return null
     }
 
@@ -987,10 +1036,7 @@ export class Hab {
     this.phase = 'end'
     this.outcome = outcome
     this.loseReason = reason
-    this.incident = {
-      ...this.bus.report(),
-      wastedWalkSeconds: Math.round(this.wastedWalk * 10) / 10,
-    }
+    this.incident = this.bus.report(this.wastedWalk)
     this.stopClock()
     this.speak(
       outcome === 'won'
@@ -1104,43 +1150,59 @@ export class Hab {
         : null
 
     if (role === 'engineer') {
+      const covers = this.coversOf('engineer')
       return {
         ...base,
         power: Math.round(this.power),
         draw: Math.round(this.busDraw * 10) / 10,
+        stormEta: covers.includes('pilot') ? this.stormEta : null,
+        stormActive: covers.includes('pilot') ? this.stormActive : null,
+        alarms: covers.includes('sparks') ? this.alarms : [],
+        covers,
         seal: this.sealView('engineer'),
         signalCooldownMs: cooldown,
         lastSignal: this.lastSignalBy.engineer,
         ackAgeMs: ackFor('engineer'),
-        order: this.orderFor('engineer'),
-        gripe: this.gripeLine('engineer'),
+        order: this.orderForCovered(covers),
+        gripe: this.gripeLine('engineer') ?? (covers.includes('pilot') ? this.gripeLine('pilot') : null) ?? (covers.includes('sparks') ? this.gripeLine('sparks') : null),
       }
     }
 
     if (role === 'pilot') {
+      const covers = this.coversOf('pilot')
       return {
         ...base,
+        power: covers.includes('engineer') ? Math.round(this.power) : null,
+        draw: covers.includes('engineer') ? Math.round(this.busDraw * 10) / 10 : null,
         stormEta: this.stormEta,
         stormActive: this.stormActive,
+        alarms: covers.includes('sparks') ? this.alarms : [],
+        covers,
         seal: this.sealView('pilot'),
         signalCooldownMs: cooldown,
         lastSignal: this.lastSignalBy.pilot,
         ackAgeMs: ackFor('pilot'),
-        order: this.orderFor('pilot'),
-        gripe: this.gripeLine('pilot'),
+        order: this.orderForCovered(covers),
+        gripe: this.gripeLine('pilot') ?? (covers.includes('engineer') ? this.gripeLine('engineer') : null) ?? (covers.includes('sparks') ? this.gripeLine('sparks') : null),
       }
     }
 
     if (role === 'sparks') {
+      const covers = this.coversOf('sparks')
       return {
         ...base,
+        power: covers.includes('engineer') ? Math.round(this.power) : null,
+        draw: covers.includes('engineer') ? Math.round(this.busDraw * 10) / 10 : null,
+        stormEta: covers.includes('pilot') ? this.stormEta : null,
+        stormActive: covers.includes('pilot') ? this.stormActive : null,
         alarms: this.alarms,
+        covers,
         seal: this.sealView('sparks'),
         signalCooldownMs: cooldown,
         lastSignal: this.lastSignalBy.sparks,
         ackAgeMs: ackFor('sparks'),
-        order: this.orderFor('sparks'),
-        gripe: this.gripeLine('sparks'),
+        order: this.orderForCovered(covers),
+        gripe: this.gripeLine('sparks') ?? (covers.includes('engineer') ? this.gripeLine('engineer') : null) ?? (covers.includes('pilot') ? this.gripeLine('pilot') : null),
       }
     }
 
