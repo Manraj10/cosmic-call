@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "airgap",
+      "name": "cosmic-call",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 43127

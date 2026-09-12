@@ -9,7 +9,7 @@ Track: **Multiplayer**.
 ## Project name
 
 ```
-AIRGAP
+Cosmic Call
 ```
 
 ## Tagline
@@ -21,7 +21,7 @@ A 90-second co-op game for four phones where the only person who can touch the s
 ## Repo
 
 ```
-https://github.com/Manraj10/airgap
+https://github.com/Manraj10/cosmic-call
 ```
 
 ---
@@ -40,7 +40,7 @@ spent defending it.
 ## Project description
 
 ```
-AIRGAP is a ninety-second co-op game for four phones at one table. You are the crew of
+Cosmic Call is a ninety-second co-op game for four phones at one table. You are the crew of
 Mars habitat HAB-7 in a dust storm. Three emergencies land in ninety seconds: a valve
 leak, a pump runaway, and the storm front itself.
 

@@ -1,3 +1,4 @@
+import type { ModuleId } from './habitat.ts'
 import type { SealState } from './seal.ts'
 
 export const ROLE_IDS = ['vega', 'engineer', 'pilot', 'sparks'] as const
@@ -29,6 +30,9 @@ export type SignalId =
   | 'seal-starboard'
   | 'shields-on'
   | 'brace'
+  /** Comms only: send the operator to the registry to rotate a seat's key. */
+  | 'revoke-power'
+  | 'revoke-nav'
 
 export type Phase = 'lobby' | 'play' | 'end'
 export type Outcome = 'won' | 'lost'
@@ -80,6 +84,17 @@ export interface SealView {
   log: { signal: SignalId; seq: number; mine: boolean }[]
 }
 
+/** Where the operator is standing, and what she is carrying. Vega only. */
+export interface HabView {
+  at: ModuleId
+  /** Set while she is between modules; controls are dead in transit. */
+  walkingTo: ModuleId | null
+  arriveInMs: number
+  holdingToken: boolean
+  /** Null when she is carrying it. */
+  tokenAt: ModuleId | null
+}
+
 export interface IncidentReport {
   delivered: number
   forged: number
@@ -88,6 +103,8 @@ export interface IncidentReport {
   stolenFrom: CrewId | null
   timeToRevoke: number | null
   falseRevokes: number
+  /** Seconds she spent walking to a module a forged order sent her to. */
+  wastedWalkSeconds: number
   grade: string
 }
 
@@ -113,6 +130,8 @@ export interface ClientView {
   pumpOn: boolean | null
   shieldsOn: boolean | null
   braced: boolean | null
+  /** Vega only: where she is standing. */
+  hab: HabView | null
   /** Vega only: orders pushed to her glass, sealed and unsealed alike. */
   signals: SignalEvent[]
 
@@ -126,14 +145,15 @@ export interface ClientView {
   /** Sparks only. */
   alarms: string[]
 
+  /**
+   * Seats this console is covering. With a short crew one person holds more
+   * than one instrument, so a table of two still runs every system.
+   */
+  covers: CrewId[] | null
   /** Crew only: this console's signing key and its log. */
   seal: SealView | null
-  /** Sparks only: comms owns the key registry, so comms owns revocation. */
-  canRevoke: CrewId[] | null
-  /** Sparks only: how long since a revoke was fired, for the cooldown read. */
-  revokeCooldownMs: number | null
 
-  /** Shared by the three crew: one signal pad, one cooldown. */
+  /** Shared by the crew: one signal pad, one cooldown. */
   signalCooldownMs: number | null
   /** The call this player sent last — not anyone else's. */
   lastSignal: SignalId | null
@@ -163,6 +183,10 @@ export interface ClientView {
     alarms: string[]
     /** The board is the only screen that shows the bus as the room sees it. */
     busThreat: string | null
+    /** Where the operator is, for the big screen. */
+    operator: HabView
+    /** Every order that hit the glass this round, with its seal. */
+    traffic: { signal: SignalId; seal: SealState; tag: string; from: CrewId | null }[]
   } | null
 }
 
@@ -172,9 +196,19 @@ export type ClientAction =
   | { type: 'shields'; on: boolean }
   | { type: 'brace' }
   | { type: 'clear-signals' }
+  /** Vega: start walking. Controls are dead until she arrives. */
+  | { type: 'walk'; to: ModuleId }
+  /** Vega: pick up or put down the key token. */
+  | { type: 'token'; take: boolean }
+  /**
+   * Vega: rotate a seat's key. Only at the registry, only holding the token —
+   * a compromised bus cannot be used to fix itself.
+   */
+  | { type: 'revoke'; seat: CrewId }
   /** Crew: an order, signed on the phone before it leaves. */
   | { type: 'signal'; signal: SignalId; seq: number; tag: string }
-  /** Sparks: rotate a seat's key. Wrong guesses cost the table a call. */
-  | { type: 'revoke'; seat: CrewId }
+  /** Host: run it again without everyone rejoining. */
+  | { type: 'rematch' }
 
 export type { SealState }
+export type { ModuleId }

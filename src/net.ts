@@ -18,10 +18,19 @@ export function getSocket(): Socket {
 }
 
 export function playerKey(): string {
-  const existing = sessionStorage.getItem('airgap.pid')
+  const existing = sessionStorage.getItem('cosmic-call.pid') ?? sessionStorage.getItem('cosmiccall.pid')
   if (existing) return existing
-  const id = crypto.randomUUID()
-  sessionStorage.setItem('airgap.pid', id)
+  // `randomUUID` is secure-context-only, exactly like `crypto.subtle`. Phones
+  // join at http://192.168.x.x, which is not one, so on every real player
+  // device this is undefined and the unguarded call throws on the only two
+  // paths into the game. `getRandomValues` is not gated — shared/seal.ts
+  // already depends on that.
+  const id =
+    crypto.randomUUID?.() ??
+    [...crypto.getRandomValues(new Uint8Array(16))]
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('')
+  sessionStorage.setItem('cosmic-call.pid', id)
   return id
 }
 

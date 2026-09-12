@@ -1,6 +1,6 @@
 {
-  "name": "AIRGAP",
-  "short_name": "AIRGAP",
+  "name": "Cosmic Call",
+  "short_name": "Cosmic Call",
   "description": "Four astronauts, one dust storm, ninety seconds. She cannot hear you.",
   "start_url": "/",
   "display": "standalone",

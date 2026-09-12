@@ -1,10 +1,10 @@
-# AIRGAP
+# Cosmic Call
 
 **Four phones, one table, ninety seconds. The only person who can touch the ship cannot hear you, and something on the comms bus is writing orders in her name.**
 
 Mars habitat HAB-7, caught in a dust storm. Three emergencies land in ninety seconds. No installs, no accounts: everyone opens a URL or scans the QR code in the lobby.
 
-<img alt="AIRGAP" src="public/art/hero-hab.webp" width="640" />
+<img alt="Cosmic Call" src="public/art/hero-hab.webp" width="640" />
 
 ## The table
 
@@ -168,4 +168,4 @@ The signing key is a symmetric, server-issued secret — the same shape as an HS
 
 ## Lineage
 
-AIRGAP is two earlier builds from this window combined into one. `lineage/habitat` preserves the Mars-habitat build as it stood, with `lineage/habitat-local` as its local snapshot. `main` is the combined game.
+Cosmic Call is two earlier builds from this window combined into one. `lineage/habitat` preserves the Mars-habitat build as it stood, with `lineage/habitat-local` as its local snapshot. `main` is the combined game.

@@ -33,7 +33,7 @@ export function Lobby(props: {
       <div className="topbar">
         <div>
           <div className="tag">hab code — read it out loud</div>
-          <div className="who">AIRGAP</div>
+          <div className="who">COSMIC CALL</div>
         </div>
       </div>
       <div className="code">{view.code}</div>
