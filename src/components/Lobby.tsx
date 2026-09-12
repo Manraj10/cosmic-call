@@ -1,6 +1,6 @@
 "use client";
 
-import { SponsorCredits } from "@/components/mlh";
+import { MlhTrustBadge, SponsorCredits } from "@/components/mlh";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ClientState } from "@/shared/protocol";
@@ -31,6 +31,7 @@ export function Landing({
 
   return (
     <div className="mars-horizon stars relative flex h-dvh flex-col items-center overflow-y-auto px-4 py-8 pr-[88px] sm:pr-16">
+      <MlhTrustBadge />
       <div className="scanlines pointer-events-none absolute inset-0" />
       <div className="relative z-10 my-auto w-full max-w-lg py-4 text-center">
         <div className="font-mono text-[11px] tracking-[0.5em] text-orange-300/80">MARS HABITAT PROTOCOL</div>
@@ -135,6 +136,7 @@ export function Lobby({
   const slots = [0, 1, 2, 3];
   return (
     <div className="mars-horizon stars flex min-h-dvh flex-col overflow-hidden pr-[72px] sm:pr-4">
+      <MlhTrustBadge />
       <div className="mx-auto grid min-h-0 w-full max-w-5xl flex-1 gap-4 overflow-y-auto px-4 py-4 pb-28 lg:grid-cols-[1.1fr_0.9fr] lg:pb-8 lg:pt-8">
         <div className="glass rounded-2xl p-4 sm:p-6">
           <div className="font-mono text-[11px] tracking-[0.4em] text-orange-300">

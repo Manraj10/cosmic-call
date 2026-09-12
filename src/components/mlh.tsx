@@ -1,3 +1,5 @@
+"use client";
+
 const BADGE_SRC = "https://s3.amazonaws.com/logged-assets/trust-badge/2026/mlh-trust-badge-2026-white.svg";
 const BADGE_HREF =
   "https://mlh.io/seasons/2026/events?utm_source=na-hackathon&utm_medium=TrustBadge&utm_campaign=2026-season&utm_content=white";

@@ -1,6 +1,6 @@
 "use client";
 
-import { SponsorCredits } from "@/components/mlh";
+import { MlhTrustBadge, SponsorCredits } from "@/components/mlh";
 import { Button } from "@/components/ui/button";
 import type { ClientState } from "@/shared/protocol";
 
@@ -9,7 +9,8 @@ export function EndScreen({ state, onAgain }: { state: ClientState; onAgain: () 
   if (!end) return null;
   const ok = end.outcome !== "failure";
   return (
-    <div className="mars-horizon min-h-dvh overflow-y-auto px-4 py-8">
+    <div className="mars-horizon min-h-dvh overflow-y-auto px-4 py-8 pr-[88px] sm:pr-16">
+      <MlhTrustBadge />
       <div className="mx-auto max-w-3xl">
         <div className="font-mono text-[11px] tracking-[0.4em] text-orange-300">MISSION DEBRIEF</div>
         <h1 className="font-display mt-2 text-4xl sm:text-5xl">{end.title}</h1>
