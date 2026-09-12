@@ -46,7 +46,8 @@ export function TaskPanel({
       </div>
 
       <Block label="PROBLEM" text={task.problem} />
-      <Block label="TARGET" text={task.target} />
+      <Block label="DO THIS" text={task.target} />
+      <Block label="THE TRAP" text={task.howTo} accent />
       <div>
         <div className="font-mono text-[10px] tracking-[0.25em] text-cyan-300/70">AVAILABLE INFORMATION</div>
         <ul className="mt-1 space-y-1 text-sm text-cyan-50">
@@ -88,11 +89,13 @@ export function TaskPanel({
   );
 }
 
-function Block({ label, text }: { label: string; text: string }) {
+function Block({ label, text, accent }: { label: string; text: string; accent?: boolean }) {
   return (
     <div>
-      <div className="font-mono text-[10px] tracking-[0.25em] text-orange-300/80">{label}</div>
-      <p className="text-sm leading-snug text-white/90">{text}</p>
+      <div className={`font-mono text-[10px] tracking-[0.25em] ${accent ? "text-cyan-300" : "text-orange-300/80"}`}>
+        {label}
+      </div>
+      <p className={`text-sm leading-snug ${accent ? "text-cyan-50" : "text-white/90"}`}>{text}</p>
     </div>
   );
 }

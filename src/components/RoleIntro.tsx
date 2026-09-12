@@ -26,6 +26,9 @@ export function RoleIntro({ state, onReady }: { state: ClientState; onReady: () 
         </div>
         <p className="mt-5 text-sm text-white/80">YOUR TEAM DEPENDS ON YOU TO: {card.depends}</p>
         <p className="mt-3 text-sm font-semibold text-amber-300">BUT: {card.warning}</p>
+        <p className="mt-4 rounded-md border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs text-cyan-50">
+          When the clock starts: tap a habitat module (or the chips under the map) to walk there. Consoles only work if you are standing in that room.
+        </p>
         <div className="mt-6 flex items-center justify-between">
           <div className="font-mono text-cyan-200/60">{you?.name}</div>
           <div className="font-display text-2xl text-white">{remain}s</div>
@@ -57,18 +60,26 @@ export function Tutorial({
         <p className="mt-2 text-sm text-cyan-100">{t.target}</p>
         <ul className="mt-3 space-y-1 text-sm text-amber-100">
           {t.info.map((i) => (
-            <li key={i}>{i}</li>
+            <li key={i} className="rounded bg-black/30 px-2 py-1">
+              {i}
+            </li>
           ))}
         </ul>
         {t.done ? (
           <div className="mt-6 rounded-lg border border-cyan-400/40 bg-cyan-400/10 p-4 font-display text-xl text-cyan-200">
-            ✓ CORRECT
+            ✓ THAT&apos;S THE ONLY SAFE NUMBER
             <div className="mt-1 font-sans text-sm font-normal text-white/80">{t.explanation}</div>
           </div>
         ) : (
           <div className="mt-6 grid gap-3">
             {t.options.map((o) => (
-              <Button key={o.id} size="lg" variant={o.id === "battery" ? "cyan" : "ghost"} onClick={() => onPick(o.id)}>
+              <Button
+                key={o.id}
+                size="lg"
+                variant={o.id === "match" ? "cyan" : "ghost"}
+                className="h-auto whitespace-normal py-3 text-left"
+                onClick={() => onPick(o.id)}
+              >
                 {o.label}
               </Button>
             ))}

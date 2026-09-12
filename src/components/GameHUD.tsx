@@ -24,6 +24,7 @@ export function GameHUD({
   onConfirm,
   onHold,
   onRevive,
+  clockSkew,
 }: {
   state: ClientState;
   onMove: (room: RoomId) => void;
@@ -33,6 +34,7 @@ export function GameHUD({
   onConfirm: (taskId: string, payload: unknown) => void;
   onHold: (taskId: string, holding: boolean) => void;
   onRevive: (id: string) => void;
+  clockSkew: number;
 }) {
   const you = state.players.find((p) => p.id === state.you);
   const [tab, setTab] = useState<"map" | "task" | "crew">("map");
@@ -54,7 +56,7 @@ export function GameHUD({
         <div className="min-w-0">
           <div className="truncate font-display text-sm text-white">{you?.name}</div>
           <div className="truncate font-mono text-[10px] tracking-widest text-cyan-300/80">
-            {you?.roleTitle}
+            {you?.roleTitle} · TAP MAP TO WALK
           </div>
         </div>
         <div className="text-center">
@@ -86,7 +88,7 @@ export function GameHUD({
             </div>
           )}
         </aside>
-        <HabitatMap state={state} onMove={move} onPickup={onPickup} />
+        <HabitatMap state={state} onMove={move} onPickup={onPickup} clockSkew={clockSkew} />
         <aside className="flex flex-col gap-3 overflow-y-auto">
           <YouPanel you={you} gauges={state.gauges} onDrop={onDrop} />
           {focus && (
@@ -125,7 +127,7 @@ export function GameHUD({
                 <Sys k="COMMS" v={state.habitat.comms} compact />
               </div>
               <div className="min-h-[280px] flex-1">
-                <HabitatMap state={state} onMove={move} onPickup={onPickup} />
+                <HabitatMap state={state} onMove={move} onPickup={onPickup} clockSkew={clockSkew} />
               </div>
             </div>
           )}
@@ -196,7 +198,10 @@ function YouPanel({
         <Meter label="RAD" v={you.radiation} invert warn={30} />
       </div>
       <div className="mt-2 flex items-center justify-between text-xs">
-        <span className="text-white/70">{ROOM_LABELS[you.location]}{you.movingTo ? ` → ${ROOM_LABELS[you.movingTo]}` : ""}</span>
+        <span className="text-white/70">
+          {ROOM_LABELS[you.location]}
+          {you.movingTo ? ` → walking to ${ROOM_LABELS[you.movingTo]}` : " · tap a module to walk"}
+        </span>
         <span className="text-amber-200">
           {you.inventory ? ITEM_LABELS[you.inventory] : "EMPTY HANDS"}
         </span>

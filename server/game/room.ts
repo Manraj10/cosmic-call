@@ -19,6 +19,7 @@ import type {
   EndState,
   ItemPublic,
   PlayerPublic,
+  SeatKind,
   TaskControl,
   TaskView,
   TimelineEvent,
@@ -26,7 +27,7 @@ import type {
 } from "../../src/shared/protocol";
 import { environmentalAt, planMission } from "./director";
 import { fallbackRecap, grokLine, grokRecap } from "./grok";
-import { applyPuzzle, createPuzzle, type PuzzleInstance } from "./puzzles";
+import { applyPuzzle, createPuzzle, howToFor, type PuzzleInstance } from "./puzzles";
 import { mulberry32, pick, type Rng } from "./rng";
 import { maxUrgentTasks, roleCard, ROLE_DEFS, rolesForCount, timerScale } from "./roles";
 import {
@@ -68,6 +69,7 @@ export interface Player {
   color: string;
   avatar: number;
   slot: number;
+  kind: SeatKind;
   socketId: string | null;
   roleId: ReturnType<typeof rolesForCount>[number] | null;
   ready: boolean;
@@ -87,23 +89,28 @@ interface InternalTask {
   confirms: Map<string, { at: number; value: number }>;
 }
 
-export function makeHost(name: string, socketId: string): Player {
+export function makeHost(name: string, socketId: string, kind: SeatKind = "astronaut"): Player {
   const id = newId();
+  const monitor = kind === "monitor";
+  const callsign = monitor
+    ? (name || "Habitat Screen").trim().slice(0, 18) || "Habitat Screen"
+    : (name || "Astronaut").trim().slice(0, 18) || "Astronaut";
   return {
     id,
     token: newToken(),
-    name: (name || "Astronaut").trim().slice(0, 18) || "Astronaut",
-    color: SUIT_COLORS[0]!,
+    name: callsign,
+    color: monitor ? "#6b7280" : SUIT_COLORS[0]!,
     avatar: 0,
-    slot: 0,
+    slot: monitor ? -1 : 0,
+    kind,
     socketId,
     roleId: null,
-    ready: false,
-    tutorialDone: false,
+    ready: monitor,
+    tutorialDone: monitor,
     connected: true,
     astro: {
       id,
-      name: (name || "Astronaut").trim().slice(0, 18) || "Astronaut",
+      name: callsign,
       health: 100,
       suitOxygen: 100,
       radiation: 0,
@@ -149,6 +156,14 @@ export class GameRoom {
   lastBroadcast = 0;
   memoryWhispered = false;
 
+  astronauts() {
+    return [...this.players.values()].filter((p) => p.kind !== "monitor");
+  }
+
+  astronautCount() {
+    return this.astronauts().length;
+  }
+
   constructor(sink: RoomSink, code: string, host: Player) {
     this.sink = sink;
     this.code = code;
@@ -174,17 +189,19 @@ export class GameRoom {
   }
 
   addPlayer(name: string, socketId: string): Player | null {
-    if (this.players.size >= MAX_PLAYERS) return null;
+    if (this.astronautCount() >= MAX_PLAYERS) return null;
     if (this.phase !== "lobby") return null;
     const slot = this.nextSlot();
     const id = newId();
+    const callsign = name.slice(0, 18) || "Astronaut";
     const p: Player = {
       id,
       token: newToken(),
-      name: name.slice(0, 18),
+      name: callsign,
       color: SUIT_COLORS[slot]!,
       avatar: slot,
       slot,
+      kind: "astronaut",
       socketId,
       roleId: null,
       ready: false,
@@ -192,7 +209,7 @@ export class GameRoom {
       connected: true,
       astro: {
         id,
-        name: name.slice(0, 18),
+        name: callsign,
         health: 100,
         suitOxygen: 100,
         radiation: 0,
@@ -221,9 +238,9 @@ export class GameRoom {
   }
 
   nextSlot() {
-    const used = new Set([...this.players.values()].map((p) => p.slot));
+    const used = new Set(this.astronauts().map((p) => p.slot));
     for (let i = 0; i < 4; i++) if (!used.has(i)) return i;
-    return this.players.size;
+    return this.astronautCount();
   }
 
   dropSocket(socketId: string) {
@@ -239,15 +256,22 @@ export class GameRoom {
   start(byId: string) {
     if (byId !== this.hostId) return "Only the mission lead can start.";
     if (this.phase !== "lobby") return "Mission already underway.";
-    if (this.players.size < MIN_PLAYERS) return "Need at least 2 astronauts.";
-    const roles = rolesForCount(this.players.size);
-    const ordered = [...this.players.values()].sort((a, b) => a.slot - b.slot);
-    ordered.forEach((p, i) => {
+    if (this.astronautCount() < MIN_PLAYERS) return "Need at least 2 astronauts. The habitat screen does not count as crew.";
+    const crew = this.astronauts().sort((a, b) => a.slot - b.slot);
+    const roles = rolesForCount(crew.length);
+    crew.forEach((p, i) => {
       p.roleId = roles[i]!;
       p.ready = false;
       p.tutorialDone = false;
       p.astro.location = spawnRoom(p.roleId);
+      p.astro.movingTo = null;
     });
+    for (const p of this.players.values()) {
+      if (p.kind === "monitor") {
+        p.ready = true;
+        p.tutorialDone = true;
+      }
+    }
     this.phase = "role_intro";
     this.phaseEndsAt = Date.now() + 15000;
     this.speak("Ares Habitat, this is Mission Control. Check your boards. You do not have the whole picture.");
@@ -260,7 +284,7 @@ export class GameRoom {
     if (!p) return;
     p.ready = true;
     if (this.phase === "role_intro") {
-      const all = [...this.players.values()].every((x) => x.ready);
+      const all = this.astronauts().every((x) => x.ready);
       if (all) this.enterTutorial();
     }
   }
@@ -268,19 +292,21 @@ export class GameRoom {
   enterTutorial() {
     this.phase = "tutorial";
     this.phaseEndsAt = Date.now() + 28000;
-    for (const p of this.players.values()) p.tutorialDone = false;
-    this.speak("Training pulse. Fifty kilowatts on the bus. You need sixty. Use the emergency battery.");
+    for (const p of this.players.values()) p.tutorialDone = p.kind === "monitor";
+    this.speak("Training pulse. Oxygen first: covering a leak is not the same as flooding the cabin.");
     this.broadcast();
   }
 
   tutorial(id: string, optionId: string) {
     const p = this.players.get(id);
     if (!p || this.phase !== "tutorial") return;
-    if (optionId === "battery") {
+    if (optionId === "match") {
       p.tutorialDone = true;
       this.score += 20;
+    } else {
+      this.whisper(p, "Maxing O₂ is how you brown out. Cover the leak, don't flood the cabin.");
     }
-    if ([...this.players.values()].every((x) => x.tutorialDone)) this.enterCountdown();
+    if (this.astronauts().every((x) => x.tutorialDone)) this.enterCountdown();
     this.broadcast();
   }
 
@@ -296,7 +322,7 @@ export class GameRoom {
     this.startedAt = Date.now();
     this.phaseEndsAt = this.startedAt + MISSION_MS;
     this.sim = createSim(Date.now());
-    this.plan = planMission(this.rng, this.players.size);
+    this.plan = planMission(this.rng, this.astronautCount());
     this.planIndex = 0;
     this.envSpawned.clear();
     this.earlyAuth = String(1000 + Math.floor(this.rng() * 9000));
@@ -307,21 +333,30 @@ export class GameRoom {
 
   move(id: string, room: RoomId) {
     const p = this.players.get(id);
-    if (!p || this.phase !== "playing") return;
+    if (!p || p.kind === "monitor" || this.phase !== "playing") return;
     if (p.astro.incapacitated) return;
-    if (p.astro.movingTo) return;
-    if (p.astro.location === room) return;
+    if (p.astro.location === room && !p.astro.movingTo) return;
     const now = Date.now();
-    const dur = moveDuration(p.astro.location, room, this.players.size);
+    if (p.astro.movingTo && now < p.astro.moveEndsAt) {
+      const t = (now - p.astro.moveStartsAt) / Math.max(1, p.astro.moveEndsAt - p.astro.moveStartsAt);
+      if (t > 0.55) p.astro.location = p.astro.movingTo;
+    }
+    if (p.astro.location === room) {
+      p.astro.movingTo = null;
+      this.broadcast();
+      return;
+    }
+    const dur = moveDuration(p.astro.location, room, this.astronautCount());
     p.astro.movingTo = room;
     p.astro.moveStartsAt = now;
     p.astro.moveEndsAt = now + dur;
     this.sim.now = now;
+    this.broadcast();
   }
 
   pickup(id: string, itemId: string) {
     const p = this.players.get(id);
-    if (!p || this.phase !== "playing" || p.astro.incapacitated) return;
+    if (!p || p.kind === "monitor" || this.phase !== "playing" || p.astro.incapacitated) return;
     const item = this.items.find((i) => i.id === itemId);
     if (!item || item.location === "carried") return;
     const loc = currentRoom(p.astro, Date.now());
@@ -337,6 +372,7 @@ export class GameRoom {
     item.carriedBy = p.id;
     p.astro.inventory = item.type;
     this.push("info", `${p.name} grabbed ${ITEM_LABELS[item.type]}.`);
+    this.broadcast();
   }
 
   drop(id: string) {
@@ -350,6 +386,7 @@ export class GameRoom {
     }
     this.push("info", `${p.name} dropped ${ITEM_LABELS[p.astro.inventory]} in ${ROOM_LABELS[loc]}.`);
     p.astro.inventory = null;
+    this.broadcast();
   }
 
   revive(id: string, targetId: string) {
@@ -372,6 +409,7 @@ export class GameRoom {
     this.score += 250;
     this.push("ok", `${p.name} revived ${t.name}.`);
     this.speak(`${t.name} is back. Do not make a habit of this.`);
+    this.broadcast();
   }
 
   taskUpdate(id: string, taskId: string, payload: unknown) {
@@ -449,6 +487,7 @@ export class GameRoom {
       /* item consumed */
     }
     note(this.sim, result.explanation);
+    this.broadcast();
   }
 
   tick() {
@@ -471,9 +510,9 @@ export class GameRoom {
     }
 
     this.sim.now = now;
-    const crew = [...this.players.values()].map((p) => p.astro);
+    const crew = this.astronauts().map((p) => p.astro);
     tickSim(this.sim, crew, TICK_MS);
-    for (const p of this.players.values()) {
+    for (const p of this.astronauts()) {
       if (p.astro.movingTo && now >= p.astro.moveEndsAt) {
         p.astro.location = p.astro.movingTo;
         p.astro.movingTo = null;
@@ -533,8 +572,8 @@ export class GameRoom {
       this.push("info", "Mission Control whispered an auth code to Communications.");
     }
 
-    const scale = timerScale(this.players.size);
-    const cap = maxUrgentTasks(this.players.size);
+    const scale = timerScale(this.astronautCount());
+    const cap = maxUrgentTasks(this.astronautCount());
     const activeUrgent = this.tasks.filter(
       (t) => !t.resolved && (t.puzzle.severity === "urgent" || t.puzzle.severity === "critical"),
     ).length;
@@ -628,7 +667,7 @@ export class GameRoom {
     if (this.phase === "ended") return;
     this.phase = "ended";
     this.phaseEndsAt = null;
-    const crew = [...this.players.values()];
+    const crew = this.astronauts();
     const survivors = crew.filter((p) => !p.astro.incapacitated).length;
     if (outcome === "perfect") this.score += 1500;
     else if (outcome === "partial") this.score += 400;
@@ -710,8 +749,8 @@ export class GameRoom {
     this.missionControl = null;
     this.sim = createSim(Date.now());
     for (const p of this.players.values()) {
-      p.ready = false;
-      p.tutorialDone = false;
+      p.ready = p.kind === "monitor";
+      p.tutorialDone = p.kind === "monitor";
       p.roleId = null;
       p.astro = {
         ...p.astro,
@@ -761,7 +800,7 @@ export class GameRoom {
         : this.phase === "ended"
           ? 0
           : MISSION_MS;
-    const players: PlayerPublic[] = [...this.players.values()]
+    const players: PlayerPublic[] = this.astronauts()
       .sort((a, b) => a.slot - b.slot)
       .map((p) => ({
         id: p.id,
@@ -769,13 +808,14 @@ export class GameRoom {
         color: p.color,
         avatar: p.avatar,
         slot: p.slot,
+        kind: p.kind,
         roleId: p.roleId,
         roleTitle: p.roleId ? ROLE_DEFS[p.roleId].title : "Unassigned",
         responsibilities: p.roleId ? ROLE_DEFS[p.roleId].systems : [],
         health: Math.round(p.astro.health),
         suitOxygen: Math.round(p.astro.suitOxygen),
         radiation: Math.round(p.astro.radiation),
-        location: currentRoom(p.astro, now),
+        location: p.astro.location,
         movingTo: p.astro.movingTo,
         moveStartsAt: p.astro.moveStartsAt,
         moveEndsAt: p.astro.moveEndsAt,
@@ -819,7 +859,9 @@ export class GameRoom {
       players,
       you: forId,
       youAreHost: forId === this.hostId,
+      youAreMonitor: you?.kind === "monitor",
       hostName: this.players.get(this.hostId)?.name || "Lead",
+      serverNow: now,
       habitat: hab,
       emergencies,
       timeline: this.timeline,
@@ -828,13 +870,13 @@ export class GameRoom {
       hasCommsIntel: hasComms,
       gauges,
       tasks,
-      tutorial: this.phase === "tutorial" ? tutorialView(you) : null,
+      tutorial: this.phase === "tutorial" && you?.kind !== "monitor" ? tutorialView(you) : null,
       roleCard: you?.roleId ? roleCard(you.roleId, you.slot + 1) : null,
       end: this.end,
       voiceLine: this.voice,
-      canStart: this.phase === "lobby" && this.players.size >= MIN_PLAYERS,
-      roomFull: this.players.size >= MAX_PLAYERS,
-      playerCount: this.players.size,
+      canStart: this.phase === "lobby" && this.astronautCount() >= MIN_PLAYERS,
+      roomFull: this.astronautCount() >= MAX_PLAYERS,
+      playerCount: this.astronautCount(),
       intensity: hab.emergencyLights ? 1 : hab.lightsDim ? 0.55 : 0.2,
     };
   }
@@ -858,17 +900,23 @@ function spawnRoom(roleId: string): RoomId {
 
 function tutorialView(you?: Player): TutorialView {
   return {
-    problem: "CURRENT POWER: 50 kW. REQUIRED: 60 kW.",
-    target: "Close a 10 kW gap without waiting for solar.",
-    info: ["Emergency battery provides: 10 kW", "This is training. The real habitat will not be this kind."],
+    problem:
+      "Cabin oxygen: crew uses 12 L/min. A 4 L/min leak just opened. Generator is at 12 L/min — covering breath, not the hole.",
+    target: "Pick the one setting that covers crew + leak. Flooding the cabin is not safer.",
+    info: [
+      "Formula: production = crew use + leak. 12 + 4 = 16 L/min.",
+      "Cranking to 30 L/min does fill the tank — and steals kilowatts the heaters need. People freeze while you ‘fix’ air.",
+      "Leaving it at 12 ignores the hole. Tanks fall until someone blacks out.",
+    ],
     options: [
-      { id: "battery", label: "ACTIVATE EMERGENCY BATTERY" },
-      { id: "wait", label: "WAIT FOR SUNLIGHT" },
+      { id: "match", label: "SET GENERATOR TO 16 L/MIN  (crew + leak)" },
+      { id: "flood", label: "CRANK GENERATOR TO 30 L/MIN  (flood the cabin)" },
+      { id: "ignore", label: "LEAVE IT AT 12 L/MIN  (ignore the leak)" },
     ],
     done: !!you?.tutorialDone,
     correct: you?.tutorialDone ? true : undefined,
     explanation: you?.tutorialDone
-      ? "50 + 10 = 60 kW. Bus meets requirement."
+      ? "16 L/min covers the hole. Extra oxygen is not a buffer — it is stolen power. Remember that when the real leak hits."
       : undefined,
   };
 }
@@ -968,11 +1016,11 @@ function taskView(
   const loc = you ? currentRoom(you.astro, now) : "crew";
   const inRoom = !puz.requiredRoom || loc === puz.requiredRoom;
   const names = [...players.values()]
-    .filter((p) => puz.requiredRoom && currentRoom(p.astro, now) === puz.requiredRoom)
+    .filter((p) => p.kind !== "monitor" && puz.requiredRoom && currentRoom(p.astro, now) === puz.requiredRoom)
     .map((p) => p.name);
   let waiting = "";
   if (puz.requiresPresence && puz.requiredRoom && !inRoom) {
-    waiting = `Travel to ${ROOM_LABELS[puz.requiredRoom]}`;
+    waiting = `Walk to ${ROOM_LABELS[puz.requiredRoom]} — tap that module on the map.`;
   } else if (puz.requiredItem && you?.astro.inventory !== puz.requiredItem) {
     waiting = `Need ${ITEM_LABELS[puz.requiredItem]}`;
   } else if (puz.requiredPlayers > 1 && names.length < puz.requiredPlayers) {
@@ -984,6 +1032,7 @@ function taskView(
     title: puz.title,
     problem: puz.problem,
     target: puz.target,
+    howTo: howToFor(puz.type, puz.howTo),
     availableInfo: info.length ? info : ["You do not have local telemetry for this. Ask the crew."],
     cost: puz.cost,
     risk: puz.risk,

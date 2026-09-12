@@ -6,7 +6,7 @@ Talk out loud. Move between modules. Carry the one item you can hold. Solve exac
 
 ## Play
 
-You need **at least two devices or two browser tabs**. One player cannot start a mission.
+You need **at least two astronauts**. A computer can host the **habitat screen** (map + room code) without taking a crew seat. Astronauts join from phones.
 
 ```bash
 npm install
@@ -15,10 +15,10 @@ npm run dev
 
 Open [http://127.0.0.1:43221](http://127.0.0.1:43221).
 
-1. One player hits **CREATE MISSION** and shares the room code / QR.
-2. Others hit **JOIN MISSION**.
+1. On the TV or laptop, hit **HOST HABITAT SCREEN** and share the room code / QR. That machine is not an astronaut.
+2. Players hit **JOIN AS ASTRONAUT** (or **CREATE AND PLAY** if you want a seat on the same device).
 3. Once two astronauts are aboard, the host starts.
-4. Survive until Rescue ETA `00:00`.
+4. Tap a habitat module (or the O₂ / PWR / MED strip) to walk there. Survive until Rescue ETA `00:00`.
 
 Production (local Node):
 

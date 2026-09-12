@@ -9,6 +9,7 @@ export interface PuzzleInstance {
   title: string;
   problem: string;
   target: string;
+  howTo?: string;
   cost: string;
   risk: string;
   benefit: string;
@@ -36,6 +37,41 @@ export interface ApplyResult {
   explanation: string;
   scoreDelta: number;
   voice?: string;
+}
+
+export const PUZZLE_HOW_TO: Record<string, string> = {
+  oxygen_leak:
+    "There is one right number: crew use + leak. Set the generator there. Cranking it higher is not safer — extra O₂ steals kilowatts from heat and radios, and the tank does not need a surplus if you cover the hole.",
+  power_split:
+    "Ask every station for their critical draw. Set each slider to that number. The total must equal the bus — leftover power dumps as heat, and a shorted branch brownouts.",
+  heater:
+    "Gap ÷ rate = how long to run. Hit the cabin target and stop. Extra seconds cook the crew and drain the battery.",
+  solar_angle:
+    "Rotate by (optimal − current). One angle. Past the sun is as bad as short of it.",
+  med_dose:
+    "Dose = mass × protocol. Underdose fails. Overdose wrecks the liver. Only the product is legal.",
+  freq_tune:
+    "Lock to base frequency + interference offset. Any other number is silence.",
+  reactor_reset:
+    "Multiply the two codes. Both astronauts CONFIRM that same product within 3 seconds.",
+  airlock_seal:
+    "Two people walk to the Airlock and hold SEAL together. One person cannot dog the hatch.",
+  co2_route:
+    "There is one safe junction order. Combine both clues, then commit that path — not a shortcut.",
+  pattern:
+    "Read the rule on the stream, then type the next number. Guessing desyncs the uplink.",
+  memory_code:
+    "Type the 4-digit AUTH CODE Mission Control already read aloud. It is not on this console.",
+  valve_logic:
+    "Colors tell the order. Numbers tell which valve is which. Open that one sequence.",
+  power_surge:
+    "Keep the one branch the crew named. Trip the others. Two live branches melt the inverter.",
+  pressure_patch:
+    "Foam = differential × puncture count. Undercharge leaks. Overcharge clogs a vent.",
+};
+
+export function howToFor(type: string, override?: string) {
+  return override || PUZZLE_HOW_TO[type] || "Talk out loud. The habitat accepts one physical answer.";
 }
 
 export function durationFor(severity: Severity, scale: number) {
@@ -99,11 +135,12 @@ function oxygenLeak(rng: Rng, sim: Sim, scale: number, id: string): PuzzleInstan
     id,
     type: "oxygen_leak",
     title: "OXYGEN LEAK",
-    problem: `A hull microfracture is bleeding cabin oxygen. Production is ${current} L/min.`,
-    target: "Set generator output so production equals crew demand plus leak.",
-    cost: `Each extra L/min costs ${kw} kW.`,
-    risk: "Too low: tank falls. Too high: battery drains for no gain.",
-    benefit: "Balanced output stops the decline without wasting power.",
+    problem: `Hull microfracture. Crew is burning oxygen and a leak is hissing out a hole. Generator is behind.`,
+    target: "Set production to crew use + leak. That sum is the only legal setting — not max, not “a little extra.”",
+    howTo: PUZZLE_HOW_TO.oxygen_leak,
+    cost: `Each extra L/min costs ${kw} kW that heaters and comms also need.`,
+    risk: "Too low: people suffocate. Too high: you ‘fix’ air and brown out the habitat.",
+    benefit: "Matching the hole stops the fall without wasting power.",
     severity: "urgent",
     assignedSystems: ["life_support"],
     controlSystems: ["life_support"],
@@ -151,8 +188,9 @@ function powerSplit(rng: Rng, scale: number, id: string): PuzzleInstance {
     id,
     type: "power_split",
     title: "POWER DISTRIBUTION",
-    problem: `Bus available is ${available} kW. Critical loads must be fed exactly — leftover power dumps as heat.`,
-    target: "Set each branch to its reported critical requirement. Total must equal available.",
+    problem: `Bus available is ${available} kW. Each critical load has exactly one legal draw. Extra kW dump as heat.`,
+    target: "Set every branch to its reported critical requirement. Total must equal the bus — no leftovers, no shorts.",
+    howTo: PUZZLE_HOW_TO.power_split,
     cost: "Every kW assigned is removed from the battery-charging surplus.",
     risk: "Underfeeding a branch brownouts that system. Overfeeding trips thermal alarms.",
     benefit: "Exact allocation keeps every critical system alive.",
@@ -203,8 +241,9 @@ function heater(rng: Rng, sim: Sim, scale: number, id: string): PuzzleInstance {
     id,
     type: "heater",
     title: "TEMPERATURE DROP",
-    problem: `Cabin is ${current}°C. Crew comfort target is ${target}°C.`,
-    target: `Run the heater long enough to close a ${delta}°C gap at ${rate}°C / ${every}s.`,
+    problem: `Cabin is ${current}°C. Crew comfort is ${target}°C — not warmer.`,
+    target: `Gap ÷ rate = run time. Close ${delta}°C at +${rate}°C every ${every}s, then cut the heater.`,
+    howTo: PUZZLE_HOW_TO.heater,
     cost: "Heater draws 22 kW for the entire duration.",
     risk: "Short run: hypothermia. Long run: wasted power and overshoot.",
     benefit: "Exact duration reaches 20°C as the heater cuts out.",
@@ -247,8 +286,9 @@ function solarAngle(rng: Rng, sim: Sim, scale: number, id: string): PuzzleInstan
     id,
     type: "solar_angle",
     title: "SOLAR PANEL ALIGNMENT",
-    problem: `Arrays are parked at ${current}°. Generation is down.`,
-    target: `Rotate exactly ${delta > 0 ? "+" : ""}${delta}° to the optimal sun angle.`,
+    problem: `Arrays sit at ${current}°. Sun is elsewhere. Generation is down.`,
+    target: "Rotate by (optimal sun angle − current park angle). One number. Past the sun is as wrong as short of it.",
+    howTo: PUZZLE_HOW_TO.solar_angle,
     cost: "Actuators draw 6 kW during the slew.",
     risk: "Wrong angle reduces efficiency further. Over-rotation past the sun wastes the move.",
     benefit: "Correct angle restores solar generation.",
@@ -290,8 +330,9 @@ function medDose(rng: Rng, scale: number, id: string): PuzzleInstance {
     id,
     type: "med_dose",
     title: "MEDICAL EMERGENCY",
-    problem: `Astronaut ${name} is showing hypoxia tremor. Protocol is weight-based.`,
-    target: "Deliver the exact protocol dose. Underdose fails. Overdose damages the liver.",
+    problem: `Astronaut ${name} is hypoxic. Protocol is weight-based — one milligram off is harm.`,
+    target: "Push mass × protocol. Underdose fails. Overdose hits the liver. Only the product is legal.",
+    howTo: PUZZLE_HOW_TO.med_dose,
     cost: "Treatment occupies Medical bus for 20 seconds.",
     risk: "Wrong milligrams injure the patient. Delay lets health keep falling.",
     benefit: "Exact dose stabilizes the astronaut.",
@@ -333,8 +374,8 @@ function freqTune(rng: Rng, scale: number, id: string): PuzzleInstance {
     id,
     type: "freq_tune",
     title: "COMMUNICATION FAILURE",
-    problem: "Uplink dropped. Atmospheric plasma is shifting the carrier.",
-    target: "Tune receiver to mission frequency plus interference offset.",
+    problem: "Uplink dropped. Plasma is shoving the carrier. One frequency locks Earth; every other number is silence.",
+    target: "Tune to base beacon + interference offset. Add the two numbers you collect. Do not sweep at random.",
     cost: "Transmitter draws 4 kW while sweeping.",
     risk: "Wrong lock loses Mission Control warnings until retuned.",
     benefit: "Correct lock restores intel and flare forecasts.",
@@ -373,8 +414,8 @@ function reactorReset(rng: Rng, scale: number, id: string): PuzzleInstance {
     id,
     type: "reactor_reset",
     title: "REACTOR RESET",
-    problem: "Watchdog tripped. Manual product handshake required.",
-    target: "Enter ALPHA × BETA, then both assigned astronauts CONFIRM within 3 seconds.",
+    problem: "Watchdog tripped. The reactor wants a handshake, not a guess.",
+    target: "Multiply ALPHA × BETA. Both astronauts type that product and CONFIRM within 3 seconds of each other.",
     cost: "Reset dumps 8% battery into the igniter.",
     risk: "Desynced confirms abort. Wrong product overheats the bus.",
     benefit: "Synced correct product clears the surge and restores generation.",
@@ -412,8 +453,8 @@ function airlockSeal(scale: number, id: string): PuzzleInstance {
     id,
     type: "airlock_seal",
     title: "MANUAL AIRLOCK SEAL",
-    problem: "Inner hatch hydraulics failed. Two astronauts must physically dog the seal.",
-    target: "Both astronauts travel to the Airlock and hold SEAL together for 3 seconds.",
+    problem: "Inner hatch hydraulics failed. Software cannot close it. Pressure is leaving through the lock.",
+    target: "Two astronauts walk to AIRLOCK and hold SEAL together for 3 seconds. One person cannot dog the hatch.",
     cost: "None, besides the time you are not at your stations.",
     risk: "If only one holds, the hatch yawns back open and pressure keeps falling.",
     benefit: "A dual seal stops the leak immediately.",
@@ -453,8 +494,8 @@ function co2Route(rng: Rng, scale: number, id: string): PuzzleInstance {
     id,
     type: "co2_route",
     title: "CO₂ FILTER FAILURE",
-    problem: "Primary scrubber packed. Reroute the loop in the only safe order.",
-    target: "Tap the junctions in the correct sequence, then commit.",
+    problem: "Primary scrubber packed. CO₂ is climbing. There is one safe junction order — shortcuts dump gas into the bay.",
+    target: "Combine both clues, tap that path, then commit. Wrong order is not 'close enough'.",
     cost: "Reroute needs a Repair Kit installed in Life Support.",
     risk: "Wrong path dumps CO₂ back into the crew bay.",
     benefit: "Correct route restores filter efficiency.",
@@ -515,7 +556,7 @@ function patternPuzzle(rng: Rng, scale: number, id: string): PuzzleInstance {
     type: "pattern",
     title: "UPLINK HANDSHAKE",
     problem: `Handshake stream: ${seq.join(" · ")} · ?`,
-    target: "Enter the next symbol in the sequence.",
+    target: "Read the rule on the stream, then enter the next number. Guessing desyncs the uplink.",
     cost: "Failed handshake adds 8 seconds of comms noise.",
     risk: "A wrong next-symbol desyncs encryption for a full minute.",
     benefit: "Correct symbol restores a clean uplink burst.",
@@ -554,8 +595,8 @@ function memoryCode(rng: Rng, scale: number, id: string): PuzzleInstance {
     id,
     type: "memory_code",
     title: "AUTH GATE",
-    problem: "Emergency override is asking for the earlier Mission Control auth code.",
-    target: "Enter the 4-digit code Mission Control already transmitted.",
+    problem: "Override wants the AUTH CODE Mission Control already read aloud. It is not stored on this console.",
+    target: "Type those four digits. Guessing burns the window; asking Comms is the solution.",
     cost: "Three incorrect attempts lock the gate for the rest of the storm.",
     risk: "Guessing wastes the window. The code is not written on this console.",
     benefit: "Correct code opens backup heaters.",
@@ -596,8 +637,8 @@ function valveLogic(rng: Rng, scale: number, id: string): PuzzleInstance {
     id,
     type: "valve_logic",
     title: "PRESSURE LEAK",
-    problem: "Three manual valves. One legal sequence equalizes without blowing a gasket.",
-    target: "Open valves in the only safe order, then commit.",
+    problem: "Three manual valves. Colors are the order. Numbers are which valve. One sequence equalizes; the rest blow a gasket.",
+    target: "Translate color-order into valve numbers, then open that sequence.",
     cost: "Each wrong sequence dumps 4 kPa.",
     risk: "A gasket blowout becomes unrecoverable below 28 kPa.",
     benefit: "Correct order seals the leak.",
@@ -644,8 +685,8 @@ function powerSurge(rng: Rng, scale: number, id: string): PuzzleInstance {
     id,
     type: "power_surge",
     title: "POWER SURGE",
-    problem: "Bus overvoltage. One branch must stay hot. The others must trip.",
-    target: "Shed every non-critical branch. Leave the named survivor powered.",
+    problem: "Bus overvoltage. One named branch must stay hot. Two live branches melt the inverter.",
+    target: "Ask who must stay powered. Keep that one. Trip the rest. The named survivor is the only legal keep.",
     cost: "Tripped branches brown out for 20 seconds.",
     risk: "Leaving extra branches on melts the inverter. Tripping the critical one kills that system.",
     benefit: "Correct shed clears the surge.",
@@ -687,7 +728,7 @@ function pressurePatch(rng: Rng, scale: number, id: string): PuzzleInstance {
     type: "pressure_patch",
     title: "HULL FOAM PATCH",
     problem: `${holes} puncture sites at ${psi} kPa differential each.`,
-    target: "Set foam charge to differential × puncture count.",
+    target: "Foam = differential × puncture count. Undercharge leaks. Overcharge clogs a vent and raises CO₂.",
     cost: "Foam cartridge is single-use.",
     risk: "Undercharge fails to seal. Overcharge clogs a vent and raises CO₂.",
     benefit: "Exact charge seals all punctures.",
@@ -744,7 +785,7 @@ export function applyPuzzle(p: PuzzleInstance, payload: unknown, sim: Sim): Appl
           ok: true,
           optimal: false,
           wasted: false,
-          explanation: `Production ${v} L/min is below demand + leak (${need}). Tank declining at ${(need - v).toFixed(1)} L/min.`,
+          explanation: `Generator at ${v} L/min. You needed ${need} (crew + leak). Cabin air is still falling ${(need - v).toFixed(1)} L/min — covering the hole is the only fix, not hoping.`,
           scoreDelta: -90,
         };
       }
@@ -753,7 +794,7 @@ export function applyPuzzle(p: PuzzleInstance, payload: unknown, sim: Sim): Appl
         ok: true,
         optimal: false,
         wasted: true,
-        explanation: `Production ${v} L/min exceeds ${need}. Oxygen rises, but extra ${((v - need) * sim.o2KwPerLiter).toFixed(0)} kW is burning for nothing.`,
+        explanation: `Generator at ${v} L/min is ${v - need} above the hole (${need}). Cabin air rises, but you just stole ${((v - need) * sim.o2KwPerLiter).toFixed(0)} kW from heat and radios for oxygen nobody needed.`,
         scoreDelta: -40,
       };
     }

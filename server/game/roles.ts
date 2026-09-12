@@ -18,8 +18,8 @@ export const ROLE_DEFS: Record<RoleId, RoleDef> = {
     primary: "LIFE SUPPORT",
     systems: ["life_support"],
     controls: ["Oxygen production", "CO₂ scrubbers", "Cabin pressure"],
-    depends: "Keep the crew breathing. You will not see spare power or medical protocols.",
-    warning: "You will never have the full picture of power or thermal load.",
+    depends: "Keep the crew breathing. Tap LIFE SUPPORT to walk there before you touch the generator.",
+    warning: "Raising O₂ is not automatically safer — extra liters steal power. Match demand + leak.",
   },
   power: {
     id: "power",
@@ -27,8 +27,8 @@ export const ROLE_DEFS: Record<RoleId, RoleDef> = {
     primary: "POWER",
     systems: ["power"],
     controls: ["Battery", "Power distribution", "Emergency generator"],
-    depends: "Keep critical systems powered.",
-    warning: "You will never have enough power to give everyone everything they want.",
+    depends: "Keep critical systems powered. Walk to POWER / REACTOR to run the board.",
+    warning: "You will never have enough watts for everyone. Exact allocation, not max.",
   },
   thermal_exterior: {
     id: "thermal_exterior",

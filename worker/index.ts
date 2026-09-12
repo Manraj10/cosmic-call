@@ -23,6 +23,10 @@ function json(data: unknown, status = 200) {
   });
 }
 
+function waitMs(url: URL) {
+  return Math.min(10000, Math.max(0, Number(url.searchParams.get("wait") || 8000)));
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -50,7 +54,8 @@ export class GameRoomDO extends DurableObject<Env> {
     if (sync.op === "poll") {
       const sid = String(url.searchParams.get("sid") || "");
       if (!this.slot.mailbox.has(sid)) return json({ error: "no session" }, 400);
-      return json({ messages: this.slot.mailbox.drain(sid) });
+      const messages = await this.slot.mailbox.wait(sid, waitMs(url));
+      return json({ messages });
     }
     if (sync.op === "in") {
       const { sid, event, data } = readInParams(url);

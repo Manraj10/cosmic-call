@@ -90,6 +90,9 @@ body {
 
 .crit-pulse { animation: pulse-crit 1.1s ease-in-out infinite; }
 .bob { animation: bob 1.4s ease-in-out infinite; }
+.walk { animation: bob 0.32s ease-in-out infinite; }
+.walk-bob { animation: bob 0.35s ease-in-out infinite; }
+.walk-dash { animation: dust 0.9s linear infinite; }
 .dust-move { animation: dust 4.5s linear infinite alternate; }
 .glitch { animation: glitch 0.8s steps(2) infinite; }
 .flicker { animation: flicker 2.8s linear infinite; }

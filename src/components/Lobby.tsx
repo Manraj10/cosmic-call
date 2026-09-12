@@ -12,7 +12,7 @@ export function Landing({
   onJoin,
 }: {
   error: string | null;
-  onCreate: (name: string) => void;
+  onCreate: (name: string, monitor?: boolean) => void;
   onJoin: (name: string, code: string) => void;
 }) {
   const [name, setName] = useState("");
@@ -29,7 +29,7 @@ export function Landing({
   }, []);
 
   return (
-    <div className="mars-horizon stars relative flex min-h-dvh flex-col items-center justify-center px-4">
+    <div className="mars-horizon stars relative flex min-h-dvh flex-col items-center justify-center px-4 py-8">
       <div className="scanlines absolute inset-0" />
       <div className="relative z-10 w-full max-w-lg text-center">
         <div className="font-mono text-[11px] tracking-[0.5em] text-orange-300/80">MARS HABITAT PROTOCOL</div>
@@ -39,7 +39,7 @@ export function Landing({
           THE ASTRONAUT
         </h1>
         <p className="mt-4 text-sm text-cyan-100/70 sm:text-base">
-          A 2–4 player co-op Mars survival game. Rescue in 7 minutes. Nobody has the whole picture.
+          2–4 astronauts. Rescue in 7 minutes. A computer can host the shared habitat screen without taking a crew seat.
         </p>
         <div className="glass mt-8 space-y-4 rounded-2xl p-5 text-left">
           <label className="block">
@@ -61,9 +61,18 @@ export function Landing({
           {error && <div className="rounded bg-red-500/20 px-3 py-2 text-sm text-red-200">{error}</div>}
           {mode === "home" ? (
             <div className="grid gap-3">
-              <Button size="xl" className="w-full" onClick={() => onCreate(name || "Astronaut")}>
-                CREATE MISSION
+              <Button size="xl" className="w-full" onClick={() => onCreate("Habitat Screen", true)}>
+                OPEN HABITAT MONITOR
               </Button>
+              <p className="text-center text-xs leading-snug text-cyan-100/65">
+                For a TV or laptop. Shows the map, timer, and room code. <span className="text-amber-200">Does not count as an astronaut.</span> Phones JOIN with the code — you still need 2–4 crew.
+              </p>
+              <Button size="lg" variant="cyan" className="w-full" onClick={() => onCreate(name || "Astronaut", false)}>
+                CREATE &amp; BOARD AS ASTRONAUT
+              </Button>
+              <p className="text-center text-[11px] text-white/45">
+                Play from this device. Occupies one of the 2–4 crew seats.
+              </p>
               <Button size="lg" variant="ghost" className="w-full" onClick={() => setMode("join")}>
                 JOIN MISSION
               </Button>
@@ -79,7 +88,9 @@ export function Landing({
             </div>
           )}
         </div>
-        <p className="mt-6 font-mono text-[11px] text-white/40">TALK OUT LOUD. THE HABITAT IS LISTENING TO THE PHYSICS, NOT YOUR FEELINGS.</p>
+        <p className="mt-6 font-mono text-[11px] text-white/40">
+          TAP MODULES TO WALK. TALK OUT LOUD. THE HABITAT LISTENS TO PHYSICS, NOT FEELINGS.
+        </p>
       </div>
     </div>
   );
@@ -100,12 +111,21 @@ export function Lobby({
 
   const slots = [0, 1, 2, 3];
   return (
-    <div className="mars-horizon stars min-h-dvh px-4 py-8">
+    <div className="mars-horizon stars min-h-dvh overflow-y-auto px-4 py-8">
       <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="glass rounded-2xl p-6">
-          <div className="font-mono text-[11px] tracking-[0.4em] text-orange-300">MISSION LOBBY</div>
+          <div className="font-mono text-[11px] tracking-[0.4em] text-orange-300">
+            {state.youAreMonitor ? "HABITAT MONITOR" : "MISSION LOBBY"}
+          </div>
           <h2 className="font-display mt-2 text-3xl">ARES HABITAT</h2>
-          <p className="mt-2 text-sm text-cyan-100/70">Need 2–4 astronauts. One person cannot run this habitat.</p>
+          {state.youAreMonitor ? (
+            <p className="mt-2 text-sm text-cyan-100/80">
+              This computer is the shared habitat screen. It is <span className="text-amber-200">not a crew seat</span>.
+              Need 2–4 astronauts on phones (or extra tabs). Then start.
+            </p>
+          ) : (
+            <p className="mt-2 text-sm text-cyan-100/70">Need 2–4 astronauts. A TV/monitor host does not count as crew.</p>
+          )}
           <div className="mt-6 rounded-xl border border-cyan-400/20 bg-black/30 p-5 text-center">
             <div className="font-mono text-[10px] tracking-[0.4em] text-cyan-300/70">ROOM CODE</div>
             <div className="font-display mt-2 text-5xl tracking-[0.25em] text-orange-300">{state.roomCode}</div>
@@ -114,7 +134,9 @@ export function Lobby({
           </div>
         </div>
         <div className="glass rounded-2xl p-6">
-          <div className="font-mono text-[11px] tracking-[0.4em] text-cyan-300">CREW</div>
+          <div className="font-mono text-[11px] tracking-[0.4em] text-cyan-300">
+            ASTRONAUTS · {state.playerCount} / 4
+          </div>
           <ul className="mt-4 space-y-3">
             {slots.map((i) => {
               const p = state.players[i];
@@ -140,6 +162,11 @@ export function Lobby({
               );
             })}
           </ul>
+          {state.youAreMonitor && (
+            <div className="mt-4 rounded-md border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs text-cyan-100">
+              Habitat screen online as {state.hostName}. Crew still need two people.
+            </div>
+          )}
           {state.roomFull && (
             <div className="mt-4 text-center font-display tracking-[0.3em] text-orange-300">ROOM FULL</div>
           )}
@@ -151,7 +178,9 @@ export function Lobby({
             <div className="mt-6 text-center text-sm text-white/60">Waiting for {state.hostName} to start.</div>
           )}
           {!state.canStart && (
-            <p className="mt-3 text-center text-xs text-amber-200/80">A mission cannot start with only one player.</p>
+            <p className="mt-3 text-center text-xs text-amber-200/80">
+              Need at least two astronauts. The hosting computer does not count.
+            </p>
           )}
         </div>
       </div>

@@ -3,6 +3,7 @@
 import { EndScreen } from "@/components/EndScreen";
 import { GameHUD } from "@/components/GameHUD";
 import { Landing, Lobby } from "@/components/Lobby";
+import { HabitatMonitor } from "@/components/Monitor";
 import { Countdown, RoleIntro, Tutorial } from "@/components/RoleIntro";
 import { habitatAudio } from "@/lib/audio";
 import { getSocket } from "@/lib/socket";
@@ -17,14 +18,21 @@ export function GameApp() {
   const [state, setState] = useState<ClientState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [skew, setSkew] = useState(0);
   const [, setTick] = useState(0);
   const audioOn = useRef(false);
   const bound = useRef(false);
   const pendingName = useRef("Astronaut");
+  const pendingMonitor = useRef(false);
 
   useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), 250);
-    return () => clearInterval(id);
+    let raf = 0;
+    const loop = () => {
+      setTick((n) => n + 1);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
   }, []);
 
   useEffect(() => {
@@ -36,6 +44,7 @@ export function GameApp() {
       const next = st as ClientState;
       setState(next);
       setError(null);
+      if (typeof next.serverNow === "number") setSkew(next.serverNow - Date.now());
       if (next.voiceLine) habitatAudio.speak(next.voiceLine.text);
       if (next.phase === "playing") {
         const you = next.players.find((p) => p.id === next.you);
@@ -53,7 +62,7 @@ export function GameApp() {
       if (/already exists/i.test(text)) {
         const code = makeRoomCode();
         s.connect(code);
-        s.emit("create", { name: pendingName.current });
+        s.emit("create", { name: pendingName.current, monitor: pendingMonitor.current });
       }
     });
     s.on("toast", (t) => {
@@ -95,14 +104,15 @@ export function GameApp() {
     getSocket().emit(ev, body);
   };
 
-  const create = (name: string) => {
+  const create = (name: string, monitor = false) => {
     habitatAudio.click();
     setError(null);
     pendingName.current = name;
+    pendingMonitor.current = monitor;
     const code = makeRoomCode();
     const s = getSocket();
     s.connect(code);
-    s.emit("create", { name });
+    s.emit("create", { name, monitor });
   };
 
   const join = (name: string, code: string) => {
@@ -119,12 +129,20 @@ export function GameApp() {
   return (
     <>
       {state.phase === "lobby" && <Lobby state={state} onStart={() => emit("start")} />}
-      {state.phase === "role_intro" && <RoleIntro state={state} onReady={() => emit("ready")} />}
-      {state.phase === "tutorial" && <Tutorial state={state} onPick={(optionId) => emit("tutorial", { optionId })} />}
-      {state.phase === "countdown" && <Countdown state={state} />}
-      {state.phase === "playing" && (
+      {state.youAreMonitor && state.phase !== "lobby" && state.phase !== "ended" && (
+        <HabitatMonitor state={state} clockSkew={skew} />
+      )}
+      {!state.youAreMonitor && state.phase === "role_intro" && (
+        <RoleIntro state={state} onReady={() => emit("ready")} />
+      )}
+      {!state.youAreMonitor && state.phase === "tutorial" && (
+        <Tutorial state={state} onPick={(optionId) => emit("tutorial", { optionId })} />
+      )}
+      {!state.youAreMonitor && state.phase === "countdown" && <Countdown state={state} />}
+      {!state.youAreMonitor && state.phase === "playing" && (
         <GameHUD
           state={state}
+          clockSkew={skew}
           onMove={(room: RoomId) => emit("move", { room })}
           onPickup={(itemId) => emit("pickup", { itemId })}
           onDrop={() => emit("drop")}
@@ -140,7 +158,7 @@ export function GameApp() {
           {toast}
         </div>
       )}
-      {error && state.phase === "lobby" && (
+      {error && (state.phase === "lobby" || !state) && (
         <div className="fixed top-4 left-1/2 z-50 -translate-x-1/2 rounded bg-red-600 px-3 py-2 text-sm">{error}</div>
       )}
     </>

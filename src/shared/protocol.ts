@@ -23,12 +23,15 @@ export type RoleId =
   | "life_support_medical_comms"
   | "power_thermal_exterior";
 
+export type SeatKind = "astronaut" | "monitor";
+
 export interface PlayerPublic {
   id: string;
   name: string;
   color: string;
   avatar: number;
   slot: number;
+  kind: SeatKind;
   roleId: RoleId | null;
   roleTitle: string;
   responsibilities: SystemId[];
@@ -182,6 +185,7 @@ export interface TaskView {
   title: string;
   problem: string;
   target: string;
+  howTo: string;
   availableInfo: string[];
   cost: string;
   risk: string;
@@ -218,6 +222,7 @@ export interface TutorialView {
   options: { id: string; label: string }[];
   done: boolean;
   correct?: boolean;
+  wrong?: boolean;
   explanation?: string;
 }
 
@@ -257,7 +262,9 @@ export interface ClientState {
   players: PlayerPublic[];
   you: string;
   youAreHost: boolean;
+  youAreMonitor: boolean;
   hostName: string;
+  serverNow: number;
   habitat: HabitatPublic;
   emergencies: EmergencyPublic[];
   timeline: TimelineEvent[];
@@ -277,7 +284,7 @@ export interface ClientState {
 }
 
 export type ClientEvent =
-  | { type: "create"; name: string }
+  | { type: "create"; name: string; monitor?: boolean }
   | { type: "join"; code: string; name: string; token?: string }
   | { type: "start" }
   | { type: "ready" }
